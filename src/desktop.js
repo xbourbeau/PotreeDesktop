@@ -180,10 +180,47 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 	const { spawn, fork, execFile } = require('child_process');
 
 	let exe = './libs/PotreeConverter2/PotreeConverter.exe';
+
+	// Xavier
+	function trouverFuseau(str) {
+		// _f suivi de 1 ou 2 chiffres, puis _
+		const regex = /_f(\d{1,2})_/;
+		const match = str.match(regex);
+		
+		const epsgByFuseau = [
+			"EPSG:2946", // fuseau 1
+			"EPSG:2947", // fuseau 2
+			"EPSG:2945", // fuseau 3
+			"EPSG:2946", // fuseau 4
+			"EPSG:2947", // fuseau 5
+			"EPSG:2948", // fuseau 6
+			"EPSG:2949", // fuseau 7
+			"EPSG:2950", // fuseau 8
+			"EPSG:2951", // fuseau 9
+			"EPSG:2955", // fuseau 10
+			"EPSG:2956", // fuseau 11
+			"EPSG:2957"  // fuseau 12
+		];
+
+    if (match) {
+        const fuseau = parseInt(match[1], 10);
+        if (fuseau >= 1 && fuseau <= 12) {
+            return epsgByFuseau[fuseau - 1];
+        }
+    }
+    	return null; // Pas de fuseau MTM valide trouvé
+	};
+	
 	let parameters = [
 		...inputPaths,
 		"-o", chosenPath
 	];
+
+	let epsg = trouverFuseau(pointcloudName);
+	if (epsg !== null) {
+    	parameters.push("--projection", epsg);
+		console.log("Use projection MTM", epsg);
+	}
 
 	const converter = spawn(exe, parameters);
 

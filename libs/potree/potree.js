@@ -43117,7 +43117,10 @@
 
 			super();
 
-			this.type = 'AudioListener';
+		
+				
+
+					this.type = 'AudioListener';
 
 			this.context = AudioContext.getContext();
 
@@ -52299,6 +52302,7 @@
 			this.edges = [];
 			this.boxes = [];
 			this.width = 1;
+			this.Scale = 1;
 			this.height = 20;
 			this._modifiable = true;
 
@@ -52479,6 +52483,25 @@
 
 			this.update();
 		}
+
+//ICI↓
+		setScale (Scale) {
+			this.Scale = Scale;
+
+			let event = {
+				type: 'width_changed',
+				profile:	this,
+				Scale:	Scale
+			};
+			this.dispatchEvent(event);
+
+			this.update();
+		}
+
+				getScale () {
+			return this.Scale;
+		}
+//ICI↑
 
 		setWidth (width) {
 			this.width = width;
@@ -56834,7 +56857,6 @@
 			{ 
 				// TODO [mschuetz]: named projections that proj4 can't handle seem to cause problems.
 				// remove them for now
-
 				try{
 					proj4(this.projection);
 				}catch(e){
@@ -64454,6 +64476,12 @@ void main() {
 		return data;
 	}
 
+	// Xavier
+	const { shell } = require('electron');
+	function openExternal(url) {
+		shell.openExternal(url);
+	}
+
 	function createAnnotationsData(viewer){
 		
 		const map = new Map();
@@ -71662,6 +71690,9 @@ void main() {
 		['EPSG:26917', '+proj=utm +zone=17 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		['EPSG:26918', '+proj=utm +zone=18 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		['EPSG:26919', '+proj=utm +zone=19 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
+		// Xavier
+		['EPSG:2949', '+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
+		['EPSG:2950', '+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs']
 	]);
 
 	class MapView{
@@ -71839,6 +71870,7 @@ void main() {
 			};
 			ol.inherits(DownloadSelectionControl, ol.control.Control);
 
+			//xavier test map 
 			this.map = new ol.Map({
 				controls: ol.control.defaults({
 					attributionOptions: ({
@@ -71850,7 +71882,45 @@ void main() {
 					mousePositionControl
 				]),
 				layers: [
-					new ol.layer.Tile({source: new ol.source.OSM()}),
+					new ol.layer.Tile({
+						source: new ol.source.WMTS({
+							url: 'https://ws.mapcache.mtq.min.intra/wmts',
+							layer: 'mtq_cartebase_epsg3857',
+							matrixSet: 'grid_google_20_couche_epsg3857',
+							format: 'image/png',
+							projection: 'EPSG:3857',
+							tileGrid: new ol.tilegrid.WMTS({
+								origin: ol.extent.getTopLeft(ol.proj.get('EPSG:3857').getExtent()),
+								resolutions: [
+									156543.03392804097,
+									78271.51696402048,
+									39135.75848201024,
+									19567.87924100512,
+									9783.93962050256,
+									4891.96981025128,
+									2445.98490512564,
+									1222.99245256282,
+									611.49622628141,
+									305.748113140705,
+									152.8740565703525,
+									76.43702828517625,
+									38.21851414258813,
+									19.109257071294063,
+									9.554628535647032,
+									4.777314267823516,
+									2.388657133911758,
+									1.194328566955879,
+									0.5971642834779395
+								],
+								matrixIds: [
+									"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+  									"10", "11", "12", "13", "14", "15", "16", "17", "18"
+								]
+							}),
+							style: 'default'
+						})
+					}),
+					//new ol.layer.Tile({source: new ol.source.OSM()}),
 					this.toolLayer,
 					this.annotationsLayer,
 					this.sourcesLayer,
@@ -73042,7 +73112,12 @@ ENDSEC
 		constructor (viewer) {
 			super();
 
+
+
+
+
 			this.viewer = viewer;
+				
 			this.elRoot = $('#profile_window');
 			this.renderArea = this.elRoot.find('#profileCanvasContainer');
 			this.svg = d3.select('svg#profileSVG');
@@ -73052,7 +73127,7 @@ ENDSEC
 			this.pointclouds = new Map();
 			this.numPoints = 0;
 			this.lastAddPointsTimestamp = undefined;
-
+			
 			this.mouse = new Vector2(0, 0);
 			this.scale = new Vector3(1, 1, 1);
 
@@ -73093,7 +73168,14 @@ ENDSEC
 			this.pRenderer = new Renderer(this.renderer);
 
 			this.elRoot.i18n();
+			
+			
+			
 		}
+
+
+
+
 
 		initListeners () {
 			$(window).resize(() => {
@@ -73543,6 +73625,9 @@ ENDSEC
 				.call(this.yAxis);
 		}
 
+
+
+
 		addPoints (pointcloud, points) {
 
 			if(points.numPoints === 0){
@@ -73581,7 +73666,30 @@ ENDSEC
 				let scale = Math.min(sx, sy);
 
 				let center = this.projectedBox.getCenter(new Vector3());
-				this.scale.set(scale, scale, 1);
+				
+		
+				// MTMD VÉrification si  parseInt(document.getElementById("sldscale") existe pour éviter des erreurs de "Cannot Read Null properties"
+				 const ValScale =  parseInt(document.getElementById("sldscale").value);
+				  if (ValScale) {
+					// ValScale existe, tu peux accéder à ses propriétés
+						var scale2 = ValScale;
+					console.log(ValScale.value + 'Élément non trouvé');
+					} else {
+					// Lorsque ->  ValScale est null on met Scale2 à 1
+					console.error('Élément non trouvé');
+					console.log('Élément non trouvé');
+						var scale2 = 1;
+							}
+
+		
+
+				
+				
+			
+				var scale3 = scale+scale2 ;
+				//Pour ajuster l'échelle en Y on ajoute un facteur (échelle)
+				this.scale.set(scale, scale3 , 1);
+				//MTMD Ajuster le SCALE en Y ici.
 				this.camera.position.copy(center);
 
 				//console.log("camera: ", this.camera.position.toArray().join(", "));
@@ -73709,7 +73817,10 @@ ENDSEC
 
 			let {renderer, pRenderer, camera, profileScene, scene} = this;
 			let {scaleX, pickSphere} = this;
-
+			
+			const scaleXFactor = this.scale.x;
+			const scaleYFactor = this.scale.y;
+	
 			renderer.setSize(width, height);
 
 			renderer.setClearColor(0x000000, 0);
@@ -73726,11 +73837,19 @@ ENDSEC
 			pRenderer.render(profileScene, camera, null);
 
 			let radius = Math.abs(scaleX.invert(0) - scaleX.invert(5));
-
+			
+	
+					let radiusy =  radius*(scaleXFactor /scaleYFactor);
+			//MTMD On ajuste le rayon en Z pour qu'il ne s'affiche pas en Oblong lorsqu'on joue avec l'échelle d'éxagératoin↑
+	
+			
 			if (radius === 0) {
 				pickSphere.visible = false;
 			} else {
-				pickSphere.scale.set(radius, radius, radius);
+				
+								
+				pickSphere.scale.set(radius , radius ,  radiusy   );
+				//ajuster -> RADIUS MTMD ↑
 				pickSphere.visible = true;
 			}
 			
@@ -75106,7 +75225,12 @@ ENDSEC
 					<input id="sldProfileWidth" name="sldProfileWidth" value="5.06" style="flex-grow: 1; width:100%">
 				</span>
 				<br>
-
+								<br>
+				<span style="display:flex">
+					<span style="display:flex; align-items: center; padding-right: 10px">Échelle: </span>
+					<input id="sldscale" name="sldscale" value="1" style="flex-grow: 1; width:100%">
+				</span>
+				<br
 				<li style="margin-top: 10px">
 					<input name="download_profile" type="button" value="prepare download" style="width: 100%" />
 					<div name="download_message"></div>
@@ -75114,7 +75238,7 @@ ENDSEC
 
 				<br>
 
-				<input type="button" id="show_2d_profile" value="show 2d profile" style="width: 100%"/>
+				<input type="button" id="show_2d_profile" value="Show 2d profile" style="width: 100%"/>
 
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
@@ -75139,6 +75263,65 @@ ENDSEC
 					this.elDownloadButton.hide();
 				}
 			}
+			
+
+				
+	{ // scale spinner MTMD 
+		// On fait appelle à la mécanique de mise à jour de SetWidth pour mettre à jour l'échelle. 
+	let elScaleSlider = this.elContent.find(`#sldscale`);
+
+
+				elScaleSlider.spinner({
+					min: 1, max: 10000, step: 9,
+					numberFormat: 'n',
+					start: () => {},
+					spin: (event, ui) => {
+						
+						let value = elScaleSlider.spinner('value');
+        				measurement.setWidth(measurement.getWidth());
+    
+
+
+
+
+						measurement.setWidth(measurement.getWidth());
+					},
+/* 					change: (event, ui) => {
+						let value = elScaleSlider.spinner('value');
+						measurement.setWidth(measurement.getWidth());
+					}, */
+				 	stop: (event, ui) => {
+						let value = elScaleSlider.spinner('value');
+						measurement.setWidth(measurement.getWidth());
+					}, 
+					incremental: (count) => {
+						let value = elScaleSlider.spinner('value');
+						let step = elScaleSlider.spinner('option', 'step');
+
+						let delta = value * 9 ;
+						
+						let increments = Math.max(1, parseInt(delta / step));
+	
+						return increments;
+					}
+				});
+				elScaleSlider.spinner('value', 1);
+				elScaleSlider.spinner('widget').css('width', '100%');
+
+				
+				let ScaleListener = (event) => {
+					let value = elScaleSlider.spinner('value');
+					if (value !== parseFloat(elScaleSlider.val())) {
+						elScaleSlider.spinner('value', parseFloat(elScaleSlider.val()));
+					}
+				};
+				this.propertiesPanel.addVolatileListener(measurement, "width_changed", ScaleListener);
+			}
+			
+
+
+
+
 
 			{ // width spinner
 				let elWidthSlider = this.elContent.find(`#sldProfileWidth`);
@@ -75180,9 +75363,12 @@ ENDSEC
 				};
 				this.propertiesPanel.addVolatileListener(measurement, "width_changed", widthListener);
 			}
-
+			
+						
 			let elShow2DProfile = this.elContent.find(`#show_2d_profile`);
 			elShow2DProfile.click(() => {
+				//alert('Valeur echelle'+ document.getElementById("sldscale").value);
+				
 				this.propertiesPanel.viewer.profileWindow.show();
 				this.propertiesPanel.viewer.profileWindowController.setProfile(measurement);
 			});
@@ -79251,6 +79437,8 @@ ENDSEC
 			this.initToolbar();
 			this.initScene();
 			this.initNavigation();
+			// xavier
+			this.initMTQ();
 			this.initFilters();
 			this.initClippingTool();
 			this.initSettings();
@@ -80631,7 +80819,6 @@ ENDSEC
 				}
 			));
 
-
 			elNavigation.append("<br>");
 
 
@@ -80715,7 +80902,47 @@ ENDSEC
 
 			lblMoveSpeed.html(this.viewer.getMoveSpeed().toFixed(1));
 		}
+		
+		// Xavier menu MTQ
+		initMTQ(){
+			let elMTQ = $('#mtq');
 
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/svn_360.png",
+				"[title]Open SVN360",
+				() => {let tool = this.viewer.openSVN360.startInsertion();}
+			));
+
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/igo.png",
+				"[title]Open SIGO",
+				() => {
+					let projection = viewer.getProjection();
+					let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+					console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
+					let link = `https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`;
+					openExternal(link);
+				}
+			));
+
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/streetview.png",
+				"[title]Open Google Street View",
+				() => {let tool = this.viewer.openStreetView.startInsertion();}
+			));
+
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/igo.png",
+				"[title]Télécharger des nuages de points",
+				() => {
+					let projection = viewer.getProjection();
+					let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+					console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
+					let link = `https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`;
+					openExternal(link);
+				}
+			));
+		}
 
 		initSettings(){
 
@@ -82539,6 +82766,136 @@ ENDSEC
 			}
 		}
 	};
+	
+	
+	/**
+	 * @author Xavier Bourbeau 
+	 *
+	 * adapted from Potree.AnnotationTool by
+	 */
+	class OpenSVN360 extends EventDispatcher{
+		constructor (viewer) {
+			super();
+
+			this.viewer = viewer;
+			this.renderer = viewer.renderer;
+
+			this.sg = new SphereGeometry(0.2);
+			this.sm = new MeshNormalMaterial();
+			this.s = new Mesh(this.sg, this.sm);
+		}
+
+		startInsertion (args = {}) {
+
+			let drag = (e) => {
+				let I = Utils.getMousePointCloudIntersection(
+					e.drag.end, 
+					e.viewer.scene.getActiveCamera(), 
+					e.viewer, 
+					e.viewer.scene.pointclouds,
+					{pickClipped: true});
+
+				if (I) {
+					this.s.position.copy(I.location);
+				};
+			};
+
+			let drop = (e) => {
+				viewer.scene.scene.remove(this.s);
+
+				this.s.removeEventListener("drag", drag);
+				this.s.removeEventListener("drop", drop);
+				
+				console.log(this.s.position.x, this.s.position.y, this.s.position.z);
+				let projection = e.viewer.getProjection();
+				console.log(projection);
+
+				let pt_converted = proj4(projection, 'EPSG:4326', [this.s.position.x, this.s.position.y]);
+				console.log(pt_converted);
+				
+				let link = `https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`;
+				openExternal(link);
+			};
+
+			this.s.addEventListener('drag', drag);
+			this.s.addEventListener('drop', drop);
+
+			this.viewer.scene.scene.add(this.s);
+			this.viewer.inputHandler.startDragging(this.s);
+
+		}
+		update(){
+
+		}
+
+		render(){
+		}
+	};
+
+	class OpenStreetView extends EventDispatcher{
+		constructor (viewer) {
+			super();
+
+			this.viewer = viewer;
+			this.renderer = viewer.renderer;
+
+			this.sg = new SphereGeometry(0.2);
+			this.sm = new MeshNormalMaterial();
+			this.s = new Mesh(this.sg, this.sm);
+			this.test = new Vector3(0, 0, 1);
+		}
+
+		startInsertion (args = {}) {
+
+			let drag = (e) => {
+				let I = Utils.getMousePointCloudIntersection(
+					e.drag.end, 
+					e.viewer.scene.getActiveCamera(), 
+					e.viewer, 
+					e.viewer.scene.pointclouds,
+					{pickClipped: true});
+				
+				if (I) {
+					this.s.position.copy(I.location);
+				}
+
+				if (e.drag.mouse !== MOUSE$1.LEFT) {
+					this.test.copy(this.s.position)
+				}
+			};
+
+			let drop = (e) => {
+				viewer.scene.scene.remove(this.s);
+				
+				this.s.removeEventListener("drag", drag);
+				this.s.removeEventListener("drop", drop);
+				
+				let az = Utils.computeAzimuth(this.test, this.s.position);
+				let az_deg = MathUtils.radToDeg(az);
+
+				let projection = e.viewer.getProjection();
+
+				let pt_converted = proj4(projection, 'EPSG:4326', [this.test.x, this.test.y]);
+
+				let link = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt_converted[1]},${pt_converted[0]}&heading=${az_deg}`;
+				openExternal(link);
+			};
+
+			this.s.addEventListener('drag', drag);
+			this.s.addEventListener('drop', drop);
+
+			this.viewer.scene.scene.add(this.s);
+			this.viewer.inputHandler.startDragging(this.s);
+
+		}
+		update(){
+
+		}
+
+		render(){
+		}
+	};
+
 
 	/**
 	 * @author chrisl / Geodan
@@ -88269,7 +88626,8 @@ ENDSEC
 				this.setPointBudget(1*1000*1000);
 				this.setShowBoundingBox(false);
 				this.setFreeze(false);
-				this.setControls(this.orbitControls);
+				// xavier
+				this.setControls(this.earthControls);
 				this.setBackground('gradient');
 
 				this.scaleFactor = 1;
@@ -88287,6 +88645,9 @@ ENDSEC
 			this.loadGUI = this.loadGUI.bind(this);
 
 			this.annotationTool = new AnnotationTool(this);
+			// xavier
+			this.openSVN360 = new OpenSVN360(this);
+			this.openStreetView = new OpenStreetView(this);
 			this.measuringTool = new MeasuringTool(this);
 			this.profileTool = new ProfileTool(this);
 			this.volumeTool = new VolumeTool(this);

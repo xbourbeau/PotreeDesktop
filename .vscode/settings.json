@@ -15,7 +15,7 @@
 	"editor.acceptSuggestionOnEnter": "off",
 	"editor.acceptSuggestionOnCommitCharacter": false,
 	"editor.mouseWheelZoom": true,
-	"editor.renderWhitespace": "all",
+	"editor.renderWhitespace": "none",
 	"editor.autoClosingQuotes": "never",
 	"editor.autoSurround": "never",
 }
