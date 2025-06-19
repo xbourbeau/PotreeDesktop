@@ -71869,8 +71869,7 @@ void main() {
 				});
 			};
 			ol.inherits(DownloadSelectionControl, ol.control.Control);
-
-			//xavier test map 
+ 
 			this.map = new ol.Map({
 				controls: ol.control.defaults({
 					attributionOptions: ({
@@ -71882,6 +71881,7 @@ void main() {
 					mousePositionControl
 				]),
 				layers: [
+					//xavier Fond de carte gouvernemental
 					new ol.layer.Tile({
 						source: new ol.source.WMTS({
 							url: 'https://ws.mapcache.mtq.min.intra/wmts',
@@ -80935,11 +80935,17 @@ ENDSEC
 				Potree.resourcePath + "/icons/igo.png",
 				"[title]Télécharger des nuages de points",
 				() => {
-					let projection = viewer.getProjection();
-					let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
-					console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
-					let link = `https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`;
-					openExternal(link);
+					try {
+						let projection = viewer.getProjection();
+						let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+						console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
+						openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`);
+					} 
+					catch (error) {
+						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)')
+					};
+					
+					
 				}
 			));
 		}
