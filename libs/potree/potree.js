@@ -71694,9 +71694,9 @@ void main() {
 		['EPSG:2947', '+proj=tmerc +lat_0=0 +lon_0=-64.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2948', '+proj=tmerc +lat_0=0 +lon_0=-67.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2949', '+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
-		['EPSG:2950', '+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs']
+		['EPSG:2950', '+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2951', '+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
-		['EPSG:2952', '+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
+		['EPSG:2952', '+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs']
 	]);
 
 	class MapView{
@@ -71795,6 +71795,87 @@ void main() {
 				undefinedHTML: '&nbsp;'
 			});
 
+			// Xavier Créer le fond de carte de l'imagerie aérienne
+			let imagerie_aerienne = new ol.layer.Tile({
+				source: new ol.source.WMTS({
+					url: 'https://www.geomsp.qc/carto/wmts',
+					layer: 'orthos',
+					matrixSet: 'EPSG_3857',
+					format: 'image/jpeg',
+					projection: 'EPSG:3857',
+					tileGrid: new ol.tilegrid.WMTS({
+						origin: ol.extent.getTopLeft(ol.proj.get('EPSG:3857').getExtent()),
+						resolutions: [
+							156543.03392804097,
+							78271.51696402048,
+							39135.75848201024,
+							19567.87924100512,
+							9783.93962050256,
+							4891.96981025128,
+							2445.98490512564,
+							1222.99245256282,
+							611.49622628141,
+							305.748113140705,
+							152.8740565703525,
+							76.43702828517625,
+							38.21851414258813,
+							19.109257071294063,
+							9.554628535647032,
+							4.777314267823516,
+							2.388657133911758,
+							1.194328566955879,
+							0.5971642834779395
+						],
+						matrixIds: [
+							"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+							"10", "11", "12", "13", "14", "15", "16", "17", "18"
+						]
+					}),
+					style: 'default'
+				})
+			});
+			imagerie_aerienne.setVisible(false);
+
+			// Xavier Créer le fond de carte MTMD
+			let fond_MTMD = new ol.layer.Tile({
+				source: new ol.source.WMTS({
+					url: 'https://ws.mapcache.mtq.min.intra/wmts',
+					layer: 'mtq_cartebase_epsg3857',
+					matrixSet: 'grid_google_20_couche_epsg3857',
+					format: 'image/png',
+					projection: 'EPSG:3857',
+					tileGrid: new ol.tilegrid.WMTS({
+						origin: ol.extent.getTopLeft(ol.proj.get('EPSG:3857').getExtent()),
+						resolutions: [
+							156543.03392804097,
+							78271.51696402048,
+							39135.75848201024,
+							19567.87924100512,
+							9783.93962050256,
+							4891.96981025128,
+							2445.98490512564,
+							1222.99245256282,
+							611.49622628141,
+							305.748113140705,
+							152.8740565703525,
+							76.43702828517625,
+							38.21851414258813,
+							19.109257071294063,
+							9.554628535647032,
+							4.777314267823516,
+							2.388657133911758,
+							1.194328566955879,
+							0.5971642834779395
+						],
+						matrixIds: [
+							"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+							"10", "11", "12", "13", "14", "15", "16", "17", "18"
+						]
+					}),
+					style: 'default'
+				})
+			});
+
 			let _this = this;
 			let DownloadSelectionControl = function (optOptions) {
 				let options = optOptions || {};
@@ -71818,6 +71899,16 @@ void main() {
 				let button = document.createElement('button');
 				button.innerHTML = 'D';
 				link.appendChild(button);
+
+				// Xavier TOGGLE Imagerie aérienne
+				let btToggleImage = document.createElement('button');
+				btToggleImage.innerHTML = 'I';
+				btToggleImage.addEventListener('click', () => {
+					imagerie_aerienne.setVisible(!imagerie_aerienne.getVisible());
+					fond_MTMD.setVisible(!fond_MTMD.getVisible());
+				}, false);
+				btToggleImage.style.float = 'left';
+				btToggleImage.title = 'Afficher / masquer les images aériennes';
 
 				let handleDownload = (e) => {
 					let features = selectedFeatures.getArray();
@@ -71863,6 +71954,8 @@ void main() {
 				element.className = 'ol-unselectable ol-control';
 				element.appendChild(link);
 				element.appendChild(btToggleTiles);
+				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
+				element.appendChild(btToggleImage);
 				element.style.bottom = '0.5em';
 				element.style.left = '0.5em';
 				element.title = 'Download file or list of selected tiles. Select tile with left mouse button or area using ctrl + left mouse.';
@@ -71873,7 +71966,7 @@ void main() {
 				});
 			};
 			ol.inherits(DownloadSelectionControl, ol.control.Control);
- 
+
 			this.map = new ol.Map({
 				controls: ol.control.defaults({
 					attributionOptions: ({
@@ -71885,45 +71978,9 @@ void main() {
 					mousePositionControl
 				]),
 				layers: [
-					//xavier Fond de carte gouvernemental
-					new ol.layer.Tile({
-						source: new ol.source.WMTS({
-							url: 'https://ws.mapcache.mtq.min.intra/wmts',
-							layer: 'mtq_cartebase_epsg3857',
-							matrixSet: 'grid_google_20_couche_epsg3857',
-							format: 'image/png',
-							projection: 'EPSG:3857',
-							tileGrid: new ol.tilegrid.WMTS({
-								origin: ol.extent.getTopLeft(ol.proj.get('EPSG:3857').getExtent()),
-								resolutions: [
-									156543.03392804097,
-									78271.51696402048,
-									39135.75848201024,
-									19567.87924100512,
-									9783.93962050256,
-									4891.96981025128,
-									2445.98490512564,
-									1222.99245256282,
-									611.49622628141,
-									305.748113140705,
-									152.8740565703525,
-									76.43702828517625,
-									38.21851414258813,
-									19.109257071294063,
-									9.554628535647032,
-									4.777314267823516,
-									2.388657133911758,
-									1.194328566955879,
-									0.5971642834779395
-								],
-								matrixIds: [
-									"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-  									"10", "11", "12", "13", "14", "15", "16", "17", "18"
-								]
-							}),
-							style: 'default'
-						})
-					}),
+					// Xavier Ajouter les 2 fonds à la carte
+					imagerie_aerienne,
+					fond_MTMD,
 					//new ol.layer.Tile({source: new ol.source.OSM()}),
 					this.toolLayer,
 					this.annotationsLayer,
@@ -80907,49 +80964,53 @@ ENDSEC
 			lblMoveSpeed.html(this.viewer.getMoveSpeed().toFixed(1));
 		}
 		
-		// Xavier menu MTQ
+		// Xavier Création du menu avec les outils MTQ
 		initMTQ(){
 			let elMTQ = $('#mtq');
 
-			elMTQ.append(this.createToolIcon(
-				Potree.resourcePath + "/icons/svn_360.png",
-				"[title]Open SVN360",
-				() => {let tool = this.viewer.openSVN360.startInsertion();}
-			));
-
+			// Outils pour ouvrir une vue SIGO
 			elMTQ.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/igo.png",
-				"[title]Open SIGO",
+				"[title]Ouvrir une vue SIGO",
 				() => {
-					let projection = viewer.getProjection();
-					let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
-					console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
-					let link = `https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`;
-					openExternal(link);
+					try {
+						let projection = viewer.getProjection();
+						let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+						openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`);
+					}
+					catch (error) {
+						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default');
+					};
 				}
 			));
 
+			// Outils pour ouvrir une vue SVN360
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/svn_360.png",
+				"[title]Ouvrir une vue dans SVN360",
+				() => {let tool = this.viewer.openSVN360.startInsertion();}
+			));
+
+			// Outils pour ouvrir une vue dans Google Street View
 			elMTQ.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/streetview.png",
 				"[title]Open Google Street View",
 				() => {let tool = this.viewer.openStreetView.startInsertion();}
 			));
 
+			// Outils pour ouvrir une vue dans SIGO avec les couche de téléchargement des LIDAR
 			elMTQ.append(this.createToolIcon(
-				Potree.resourcePath + "/icons/igo.png",
-				"[title]Télécharger des nuages de points",
+				Potree.resourcePath + "/icons/point_cloud.png",
+				"[title]Télécharger des nuages de points dans SIGO",
 				() => {
 					try {
 						let projection = viewer.getProjection();
 						let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
-						console.log(projection, viewer.scene.view.position.x, viewer.scene.view.position.y)
 						openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`);
 					} 
 					catch (error) {
 						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)')
 					};
-					
-					
 				}
 			));
 		}
@@ -82780,7 +82841,8 @@ ENDSEC
 	
 	/**
 	 * @author Xavier Bourbeau 
-	 *
+	 * Outils pour intéragir dans la carte et ouvrir la vue de SVN 360
+	 * 
 	 * adapted from Potree.AnnotationTool by
 	 */
 	class OpenSVN360 extends EventDispatcher{
@@ -82816,15 +82878,10 @@ ENDSEC
 				this.s.removeEventListener("drag", drag);
 				this.s.removeEventListener("drop", drop);
 				
-				console.log(this.s.position.x, this.s.position.y, this.s.position.z);
 				let projection = e.viewer.getProjection();
-				console.log(projection);
-
 				let pt_converted = proj4(projection, 'EPSG:4326', [this.s.position.x, this.s.position.y]);
-				console.log(pt_converted);
 				
-				let link = `https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`;
-				openExternal(link);
+				openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`);
 			};
 
 			this.s.addEventListener('drag', drag);
@@ -82832,16 +82889,15 @@ ENDSEC
 
 			this.viewer.scene.scene.add(this.s);
 			this.viewer.inputHandler.startDragging(this.s);
-
-		}
-		update(){
-
-		}
-
-		render(){
 		}
 	};
 
+	/**
+	 * @author Xavier Bourbeau 
+	 * Outils pour intéragir dans la carte et ouvrir la vue Street View
+	 * 
+	 * adapted from Potree.AnnotationTool by
+	 */
 	class OpenStreetView extends EventDispatcher{
 		constructor (viewer) {
 			super();
@@ -82852,7 +82908,7 @@ ENDSEC
 			this.sg = new SphereGeometry(0.2);
 			this.sm = new MeshNormalMaterial();
 			this.s = new Mesh(this.sg, this.sm);
-			this.test = new Vector3(0, 0, 1);
+			this.first_coord = new Vector3(0, 0, 1);
 		}
 
 		startInsertion (args = {}) {
@@ -82870,7 +82926,7 @@ ENDSEC
 				}
 
 				if (e.drag.mouse !== MOUSE$1.LEFT) {
-					this.test.copy(this.s.position)
+					this.first_coord.copy(this.s.position)
 				}
 			};
 
@@ -82880,15 +82936,13 @@ ENDSEC
 				this.s.removeEventListener("drag", drag);
 				this.s.removeEventListener("drop", drop);
 				
-				let az = Utils.computeAzimuth(this.test, this.s.position);
+				let az = Utils.computeAzimuth(this.first_coord, this.s.position);
 				let az_deg = MathUtils.radToDeg(az);
 
 				let projection = e.viewer.getProjection();
+				let pt_converted = proj4(projection, 'EPSG:4326', [this.first_coord.x, this.first_coord.y]);
 
-				let pt_converted = proj4(projection, 'EPSG:4326', [this.test.x, this.test.y]);
-
-				let link = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt_converted[1]},${pt_converted[0]}&heading=${az_deg}`;
-				openExternal(link);
+				openExternal(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt_converted[1]},${pt_converted[0]}&heading=${az_deg}`);
 			};
 
 			this.s.addEventListener('drag', drag);
@@ -82896,13 +82950,6 @@ ENDSEC
 
 			this.viewer.scene.scene.add(this.s);
 			this.viewer.inputHandler.startDragging(this.s);
-
-		}
-		update(){
-
-		}
-
-		render(){
 		}
 	};
 
