@@ -24,7 +24,7 @@ export function loadDroppedPointcloud(cloudjsPath){
 		console.log("posdajdjasdjas", pointcloud.projection)
 		// Xavier
 		// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
-		if (pointcloud.projection !== null && pointcloud.projection !== viewer.getProjection()){
+		if (pointcloud.projection !== null && pointcloud.projection !== viewer.getProjection() && viewer.getProjection() !== null){
 			viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
 				Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
 				<br><br>
@@ -250,7 +250,7 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 		console.warn("Attention! La projection du fichier n'a pas été reconu dans le nom du fichier: ", pointcloudName);
 	}
 	// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
-	if (epsg !== null && epsg !== viewer.getProjection()){
+	if (epsg !== null && epsg !== viewer.getProjection() && viewer.getProjection() !== null){
 		viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
 			Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
 			<br><br>
