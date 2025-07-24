@@ -1,4 +1,3 @@
-
 import * as THREE from "../libs/three.js/build/three.module.js"
 import JSON5 from "../libs/json5-2.1.3/json5.mjs";
 
@@ -22,6 +21,17 @@ export function loadDroppedPointcloud(cloudjsPath){
 
 		material.size = 1;
 		material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+		console.log("posdajdjasdjas", pointcloud.projection)
+		// Xavier
+		// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
+		if (pointcloud.projection !== null && pointcloud.projection !== viewer.getProjection()){
+			viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
+				Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
+				<br><br>
+				Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+				<i>lidar.mobile@transports.gouv.qc.ca</i>`, {duration: 15000});
+			console.warn("La projetion des fichiers est différente: ", viewer.getProjection(), pointcloud.projection); 
+		}
 
 		viewer.zoomTo(e.pointcloud);
 	});
@@ -186,10 +196,15 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 		// _f suivi de 1 ou 2 chiffres, puis _
 		const regex = /_f(\d{1,2})_/;
 		const match = str.match(regex);
-		
+		// 2e test avec _f suivi de 1 ou 2 chiffres
+		const regex2 = /_f(\d{1,2})/;
+		const match2 = str.match(regex2);
+		// 3e test avec f suivi de 1 ou 2 chiffres puis _
+		const regex3 = /f(\d{1,2})_/;
+		const match3 = str.match(regex3);
+
 		const epsgByFuseau = [
-			"EPSG:2946", // fuseau 1
-			"EPSG:2947", // fuseau 2
+			"EPSG:2944", // fuseau 2
 			"EPSG:2945", // fuseau 3
 			"EPSG:2946", // fuseau 4
 			"EPSG:2947", // fuseau 5
@@ -197,18 +212,18 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 			"EPSG:2949", // fuseau 7
 			"EPSG:2950", // fuseau 8
 			"EPSG:2951", // fuseau 9
-			"EPSG:2955", // fuseau 10
-			"EPSG:2956", // fuseau 11
-			"EPSG:2957"  // fuseau 12
+			"EPSG:2952" // fuseau 10
 		];
 
-    if (match) {
-        const fuseau = parseInt(match[1], 10);
-        if (fuseau >= 1 && fuseau <= 12) {
-            return epsgByFuseau[fuseau - 1];
-        }
-    }
-    	return null; // Pas de fuseau MTM valide trouvé
+		// Cherche le premier match valide dans l'ordre
+		const premierMatch = [match, match2, match3].find(m => m && m[1]);
+		if (premierMatch) {
+			const fuseau = parseInt(premierMatch[1], 10);
+			if (fuseau >= 2 && fuseau <= 10) {
+				return epsgByFuseau[fuseau - 2];
+			}
+		}
+		return null; // Pas de fuseau MTM valide trouvé
 	};
 	
 	let parameters = [
@@ -216,10 +231,32 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 		"-o", chosenPath
 	];
 
+	// Trouver le fuseau MTM à partir du nom du point cloud
 	let epsg = trouverFuseau(pointcloudName);
+	// Vérifier si la projection est trrouvée
 	if (epsg !== null) {
+		// Ajouter l'option de la projection à la conversion du point cloud
     	parameters.push("--projection", epsg);
-		console.log("Use projection MTM", epsg);
+		console.log("La projection MTM a été reconnue:", epsg);
+	}
+	// Si la projection n'est pas trouvée, afficher un message d'avertissement à l'utilisateur
+	else {
+		viewer.postError(`<b>Attention!</b> La projection du fichier n'a pas été reconu.<br>
+			Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
+			<br><br>
+			Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+			<i>lidar.mobile@transports.gouv.qc.ca</i>`, {duration: 15000});
+		
+		console.warn("Attention! La projection du fichier n'a pas été reconu dans le nom du fichier: ", pointcloudName);
+	}
+	// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
+	if (epsg !== null && epsg !== viewer.getProjection()){
+		viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
+			Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
+			<br><br>
+			Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+			<i>lidar.mobile@transports.gouv.qc.ca</i>`, {duration: 15000});
+		console.warn("La projetion des fichiers est différente: ", viewer.getProjection(), epsg); 
 	}
 
 	const converter = spawn(exe, parameters);

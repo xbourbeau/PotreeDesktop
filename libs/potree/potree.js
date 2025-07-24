@@ -71691,6 +71691,9 @@ void main() {
 		['EPSG:26918', '+proj=utm +zone=18 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		['EPSG:26919', '+proj=utm +zone=19 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		// Xavier Ajouter les références des EPSG des Fuseau MTM possible
+		['EPSG:2944', '+proj=tmerc +lat_0=0 +lon_0=-55.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
+		['EPSG:2945', '+proj=tmerc +lat_0=0 +lon_0=-58.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
+		['EPSG:2946', '+proj=tmerc +lat_0=0 +lon_0=-61.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2947', '+proj=tmerc +lat_0=0 +lon_0=-64.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2948', '+proj=tmerc +lat_0=0 +lon_0=-67.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2949', '+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
@@ -71795,7 +71798,7 @@ void main() {
 				undefinedHTML: '&nbsp;'
 			});
 
-			// Xavier Créer le fond de carte de l'imagerie aérienne
+			// Xavier créer le fond de carte de l'imagerie aérienne
 			let imagerie_aerienne = new ol.layer.Tile({
 				source: new ol.source.WMTS({
 					url: 'https://www.geomsp.qc/carto/wmts',
@@ -71952,8 +71955,8 @@ void main() {
 				// assemble container
 				let element = document.createElement('div');
 				element.className = 'ol-unselectable ol-control';
-				element.appendChild(link);
-				element.appendChild(btToggleTiles);
+				//element.appendChild(link);
+				//element.appendChild(btToggleTiles);
 				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
 				element.appendChild(btToggleImage);
 				element.style.bottom = '0.5em';
@@ -80971,31 +80974,35 @@ ENDSEC
 			// Outils pour ouvrir une vue SIGO
 			elMTQ.append(this.createToolIcon(
 				Potree.resourcePath + "/icons/igo.png",
-				"[title]Ouvrir une vue SIGO",
+				"[title]Ouvrir la vue courante dans SIGO",
 				() => {
 					try {
+						// Récupérer la projection de la vue
 						let projection = viewer.getProjection();
-						let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
-						openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`);
+						// Vérifier si la projection de la vue est défini
+						if (!projection) {
+							// Afficher un message d'erreur à l'utilisateur 
+							viewer.postMessage(`<b>Attention!</b> La projection du nuage de point n'est pas reconnu.<br>
+								Il est possible que la vue ouverte ne soit pas adéquate.
+								<br><br>
+								<span style="font-size:70%">Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+								<i>lidar.mobile@transports.gouv.qc.ca</i></span>`, {duration: 15000});
+							// Ouvrir la page par défaut de SIGO avec une erreur dans la console
+							throw new Error("Projection not set");
+						} else {
+							// Convertir les coordonnées du point de vue actuel vers EPSG:4326
+							let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+							// Ouvrir SIGO avec les coordonnée de la vue actuelle
+							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`);
+						}
 					}
 					catch (error) {
+						// Ouvrir la page par défaut de SIGO en cas d'erreur
 						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default');
+						// Affichier un error dans la console
+						console.warn("Error à l'ouverture de SIGO", error);
 					};
 				}
-			));
-
-			// Outils pour ouvrir une vue SVN360
-			elMTQ.append(this.createToolIcon(
-				Potree.resourcePath + "/icons/svn_360.png",
-				"[title]Ouvrir une vue dans SVN360",
-				() => {let tool = this.viewer.openSVN360.startInsertion();}
-			));
-
-			// Outils pour ouvrir une vue dans Google Street View
-			elMTQ.append(this.createToolIcon(
-				Potree.resourcePath + "/icons/streetview.png",
-				"[title]Open Google Street View",
-				() => {let tool = this.viewer.openStreetView.startInsertion();}
 			));
 
 			// Outils pour ouvrir une vue dans SIGO avec les couche de téléchargement des LIDAR
@@ -81004,12 +81011,59 @@ ENDSEC
 				"[title]Télécharger des nuages de points dans SIGO",
 				() => {
 					try {
+						// Récupérer la projection de la vue
 						let projection = viewer.getProjection();
-						let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
-						openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`);
-					} 
+						// Vérifier si la projection de la vue est défini
+						if (!projection) {
+							// Afficher un message d'erreur à l'utilisateur 
+							viewer.postMessage(`<b>Attention!</b> La projection du nuage de point n'est pas reconnu.<br>
+								Il est possible que la vue ouverte ne soit pas adéquate.
+								<br><br>
+								<span style="font-size:70%">Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+								<i>lidar.mobile@transports.gouv.qc.ca</i></span>`, {duration: 15000});
+							// Ouvrir la page par défaut de SIGO avec une erreur dans la console
+							throw new Error("Projection not set");
+						} else {
+							// Convertir les coordonnées du point de vue actuel vers EPSG:4326
+							let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
+							// Ouvrir SIGO avec les coordonnée de la vue actuelle
+							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`);
+					}
+					}
 					catch (error) {
+						// Ouvrir la page par défaut de SIGO en cas d'erreur
 						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)')
+						// Affichier un error dans la console
+						console.warn("Error à l'ouverture de SIGO", error);
+					};
+				}
+			));
+
+			// Outils pour ouvrir une vue SVN360
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/svn_360.png",
+				"[title]Ouvrir SVN360 à partir d'un point dans la carte",
+				() => {this.viewer.openSVN360.startInsertion();}
+			));
+
+			// Outils pour ouvrir une vue dans Google Street View
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/streetview.png",
+				"[title]Ouvrir Google StreetView à partir d'un point dans la carte",
+				() => {this.viewer.openStreetView.startInsertion();}
+			));
+
+			// Outils pour ouvrir la pages contenant les vidéos tutoriels de Potree
+			elMTQ.append(this.createToolIcon(
+				Potree.resourcePath + "/icons/help.png",
+				"[title]Ouvrir les tutoriels d'aide sur Potree du Ministère",
+				() => {
+					try{
+						// Ouvrire le lien vers les tutoriels d'aide sur Potree du Ministère
+						openExternal('https://mtqazure.sharepoint.com/:f:/r/sites/AllCompany.314380.nwtyvsbo/Documents%20partages/Vid%C3%A9os/Lidar%20mobile/Tutoriel%20Potree?csf=1&web=1&e=DbkXS0');
+					}
+					catch (error) {
+						console.error("Oupsi, un problème est survenu à l'ouverture du lien vers les tutoriels d'aide sur Potree du Ministère! ", error);
 					};
 				}
 			));
@@ -81036,7 +81090,6 @@ ENDSEC
 			{
 				let elSplatQuality = $("#splat_quality_options");
 				elSplatQuality.selectgroup({title: "Splat Quality"});
-
 				elSplatQuality.find("input").click( (e) => {
 					if(e.target.value === "standard"){
 						this.viewer.useHQ = false;
@@ -81044,7 +81097,6 @@ ENDSEC
 						this.viewer.useHQ = true;
 					}
 				});
-
 				let currentQuality = this.viewer.useHQ ? "hq" : "standard";
 				elSplatQuality.find(`input[value=${currentQuality}]`).trigger("click");
 			}
@@ -82858,35 +82910,72 @@ ENDSEC
 		}
 
 		startInsertion (args = {}) {
+			let message = `Cliquer sur un point pour ouvrir la vue dans SVN360`
+			viewer.postMessage(message, {duration: 4000})
 
 			let drag = (e) => {
+				// Récupérer le point d'intersetion de la souris avec le nuage de point dans la vue
 				let I = Utils.getMousePointCloudIntersection(
 					e.drag.end, 
 					e.viewer.scene.getActiveCamera(), 
 					e.viewer, 
 					e.viewer.scene.pointclouds,
 					{pickClipped: true});
-
+				// Conservée la position du point d'intersection si elle est valide
 				if (I) {
 					this.s.position.copy(I.location);
 				};
 			};
 
 			let drop = (e) => {
-				viewer.scene.scene.remove(this.s);
-
-				this.s.removeEventListener("drag", drag);
-				this.s.removeEventListener("drop", drop);
-				
-				let projection = e.viewer.getProjection();
-				let pt_converted = proj4(projection, 'EPSG:4326', [this.s.position.x, this.s.position.y]);
-				
-				openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`);
+				try {
+					// Cancel les suivi de click dans la vue
+					cancel();
+					// Récupération de la projection du nuage de point
+					let projection = e.viewer.getProjection();
+					// Vérification de si aucune projection n'est définie
+					if (!projection) {
+						// Vérification si un point à été cliqué ou si la position est vide
+						if (this.s.position.x !== 0) {
+							// Afficher un message d'erreur à l'utilisateur 
+							viewer.postError(`<b>Attention!</b> La projection du nuage de point n'a pas été reconnu.<br>
+								Il est possible que la vue ouverte ne soit pas adéquate.
+								<br><br>
+								<span style="font-size:70%">Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+								<i>lidar.mobile@transports.gouv.qc.ca</i></span>`, {duration: 15000});
+							// Ouvrir la page par défaut de SVN360 avec une erreur dans la console
+							throw new Error("Projection not set");
+						// Ouvrir la page par défault si aucun point n'est cliquée
+						} else {
+							openExternal("https://svn360.mtq.min.intra")
+							// Avertir l'utilisateur que aucune point n'est cliquée
+							viewer.postMessage("Aucun point n'a été trouvée!")
+						}
+					// Une projection est définie, on converti les coordonnées du point
+					} else {
+						// Convertir la position du point dans le système de coordonnées EPSG:4326
+						let pt_converted = proj4(projection, 'EPSG:4326', [this.s.position.x, this.s.position.y]);
+						// Ouvrir le lien SVN360 avec les coordonnées du point
+						openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`);
+					}
+				// Attraper toutes erreurs, mais ouvrir la page par défault
+				} catch (err) {
+					openExternal("https://svn360.mtq.min.intra");
+					console.error("Error opening SVN360:", err);
+				};
 			};
 
+			// Fonction pour arreter l'outils
+			let cancel = (e) => {
+				viewer.scene.scene.remove(this.s);
+				this.s.removeEventListener("drag", drag);
+				this.s.removeEventListener("drop", drop);
+			}
+
+			// Suivre les évènements de la vue
 			this.s.addEventListener('drag', drag);
 			this.s.addEventListener('drop', drop);
-
+			// Ajouter un point de cursor
 			this.viewer.scene.scene.add(this.s);
 			this.viewer.inputHandler.startDragging(this.s);
 		}
@@ -82912,42 +83001,81 @@ ENDSEC
 		}
 
 		startInsertion (args = {}) {
+			let message = `Cliquer sur un point pour ouvrir la vue dans Google StreetView.<br><br>
+			<span style="font-size:70%">
+			<i>Tip: En gardant la souris enfoncée, vous pouvez choisir la direction de la vue dans Google StreetView.</i>
+			</span>`;
+			viewer.postMessage(message, {duration: 5000})
 
 			let drag = (e) => {
+				// Récupérer le point d'intersetion de la souris avec le nuage de point dans la vue
 				let I = Utils.getMousePointCloudIntersection(
 					e.drag.end, 
 					e.viewer.scene.getActiveCamera(), 
 					e.viewer, 
 					e.viewer.scene.pointclouds,
 					{pickClipped: true});
-				
+				// Conservée la position du point d'intersection si elle est valide
 				if (I) {
 					this.s.position.copy(I.location);
 				}
-
+				// Si la souris n'est pas enfoncée, on conserve la position du point
+				// pour la direction de la vue dans Google StreetView
 				if (e.drag.mouse !== MOUSE$1.LEFT) {
 					this.first_coord.copy(this.s.position)
 				}
 			};
 
 			let drop = (e) => {
+				try {
+					// Cancel les suivi de click dans la vue
+					cancel();
+					// Récupération de la projection du nuage de point
+					let projection = e.viewer.getProjection();
+					// Vérification de si aucune projection n'est définie
+					if (!projection) {
+						// Vérification si un point à été cliqué ou si la position est vide
+						if (this.s.position.x !== 0) {
+							// Afficher un message d'erreur à l'utilisateur 
+							viewer.postError(`<b>Attention!</b> La projection du nuage de point n'a pas été reconnu.<br>
+								Il est possible que la vue ouverte ne soit pas adéquate.
+								<br><br>
+								<span style="font-size:70%">Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
+								<i>lidar.mobile@transports.gouv.qc.ca</i></span>`, {duration: 15000});
+							// Ouvrir la page par défaut avec une erreur dans la console
+							throw new Error("Projection not set");
+						// Ouvrir la page par défault si aucun point n'est cliquée
+						} else {
+							openExternal("https://www.google.com/maps")
+							// Avertir l'utilisateur que aucune point n'est cliquée
+							viewer.postMessage("Aucun point n'a été trouvée!")
+						}
+					// Une projection est définie, on converti les coordonnées du point
+					} else {
+						let az = Utils.computeAzimuth(this.first_coord, this.s.position);
+						let az_deg = MathUtils.radToDeg(az);
+						// Convertir la position du point dans le système de coordonnées EPSG:4326
+						let pt_converted = proj4(projection, 'EPSG:4326', [this.first_coord.x, this.first_coord.y]);
+						// Ouvrir le lien StreetView avec les coordonnées du point
+						openExternal(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt_converted[1]},${pt_converted[0]}&heading=${az_deg}`);
+					}
+				// Attraper toutes erreurs, mais ouvrir la page par défault
+				} catch (err) {
+					openExternal("https://www.google.com/maps");
+					console.error("Error opening StreetView:", err);
+				};
+			}
+
+			// Fonction pour arreter l'outils
+			let cancel = (e) => {
 				viewer.scene.scene.remove(this.s);
-				
 				this.s.removeEventListener("drag", drag);
 				this.s.removeEventListener("drop", drop);
-				
-				let az = Utils.computeAzimuth(this.first_coord, this.s.position);
-				let az_deg = MathUtils.radToDeg(az);
-
-				let projection = e.viewer.getProjection();
-				let pt_converted = proj4(projection, 'EPSG:4326', [this.first_coord.x, this.first_coord.y]);
-
-				openExternal(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt_converted[1]},${pt_converted[0]}&heading=${az_deg}`);
-			};
-
+			}
+			// Suivre les évènements de la vue
 			this.s.addEventListener('drag', drag);
 			this.s.addEventListener('drop', drop);
-
+			// Ajouter un point de cursor
 			this.viewer.scene.scene.add(this.s);
 			this.viewer.inputHandler.startDragging(this.s);
 		}
@@ -88684,6 +88812,9 @@ ENDSEC
 				this.setShowBoundingBox(false);
 				this.setFreeze(false);
 				// xavier
+				// Set the quality to hight by default
+				this.useHQ = true
+				// Set the navigation tool by default to EarthControls
 				this.setControls(this.earthControls);
 				this.setBackground('gradient');
 
@@ -89443,7 +89574,6 @@ ENDSEC
 				let sizing = Utils.getParameterByName('pointSizing');
 				this.setPointSizing(sizing);
 			}
-
 			if (Utils.getParameterByName('quality')) {
 				let quality = Utils.getParameterByName('quality');
 				this.setQuality(quality);
