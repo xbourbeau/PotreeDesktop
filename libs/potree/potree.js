@@ -71879,6 +71879,22 @@ void main() {
 				})
 			});
 
+			// Xavier Créer une couche des chainages MTMD
+			let chainage_MTMD = new ol.layer.Image({
+				source: new ol.source.ImageWMS({
+					url: 'https://ws.mapserver.mtq.min.intra/donnee_systeme',
+					params:{
+						'LAYERS': 'reperage_metrique',
+						'VERSION': '1.3.0',
+						'FORMAT': 'image/png',
+						'TRANSPARENT': true,
+						'CRS': 'EPSG:3857'
+					},
+					serverType: 'mapserver', 
+					crossOrigin: 'anonymous'}),
+				visible: false
+			});
+
 			let _this = this;
 			let DownloadSelectionControl = function (optOptions) {
 				let options = optOptions || {};
@@ -71912,6 +71928,15 @@ void main() {
 				}, false);
 				btToggleImage.style.float = 'left';
 				btToggleImage.title = 'Afficher / masquer les images aériennes';
+
+				// Xavier TOGGLE Chainage MTQ
+				let btToggleChainage = document.createElement('button');
+				btToggleChainage.innerHTML = 'C';
+				btToggleChainage.addEventListener('click', () => {
+					chainage_MTMD.setVisible(!chainage_MTMD.getVisible());
+				}, false);
+				btToggleChainage.style.float = 'left';
+				btToggleChainage.title = 'Afficher / masquer le chaînage';
 
 				let handleDownload = (e) => {
 					let features = selectedFeatures.getArray();
@@ -71959,6 +71984,8 @@ void main() {
 				//element.appendChild(btToggleTiles);
 				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
 				element.appendChild(btToggleImage);
+				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
+				element.appendChild(btToggleChainage);
 				element.style.bottom = '0.5em';
 				element.style.left = '0.5em';
 				element.title = 'Download file or list of selected tiles. Select tile with left mouse button or area using ctrl + left mouse.';
@@ -71982,6 +72009,7 @@ void main() {
 				]),
 				layers: [
 					// Xavier Ajouter les 2 fonds à la carte
+					chainage_MTMD,
 					imagerie_aerienne,
 					fond_MTMD,
 					//new ol.layer.Tile({source: new ol.source.OSM()}),
@@ -71999,6 +72027,8 @@ void main() {
 					zoom: 9
 				})
 			});
+
+			this.map.addLayer(chainage_MTMD)
 
 			// DRAGBOX / SELECTION
 			this.dragBoxLayer = new ol.layer.Vector({
