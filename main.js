@@ -7,6 +7,10 @@ const remote = electron.remote;
 
 const path = require('path')
 const url = require('url')
+// Xavier: add modules to handle file system and os operations
+const os = require('os');
+const fs = require('fs');
+const https = require('https');
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.

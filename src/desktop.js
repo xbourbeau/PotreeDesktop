@@ -21,7 +21,6 @@ export function loadDroppedPointcloud(cloudjsPath){
 
 		material.size = 1;
 		material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-		console.log("posdajdjasdjas", pointcloud.projection)
 		// Xavier
 		// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
 		if (pointcloud.projection !== null && pointcloud.projection !== viewer.getProjection() && viewer.getProjection() !== null){
@@ -31,6 +30,10 @@ export function loadDroppedPointcloud(cloudjsPath){
 				Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
 				<i>lidar.mobile@transports.gouv.qc.ca</i>`, {duration: 15000});
 			console.warn("La projetion des fichiers est différente: ", viewer.getProjection(), pointcloud.projection); 
+			// Mettre le label de la projection en rouge avec un tooltip d'avertissement
+			let lblProjection = $(mtq_proj).find('#lblProjection')
+			lblProjection.css("color", "red");
+			lblProjection.attr("title", "Attention! Il y a présentement plusieurs nuage de point dans des projections différente. Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.");
 		}
 
 		viewer.zoomTo(e.pointcloud);
@@ -83,6 +86,56 @@ export function createPlaceholder(aabb){
 	return placeholder;
 }
 
+// Xavier : Trouver le fuseau MTM à partir du nom du point cloud
+function trouverFuseau(str) {
+	// _f suivi de 1 ou 2 chiffres, puis _
+	const regex = /_f(\d{1,2})_/;
+	const match = str.match(regex);
+	// 2e test avec _f suivi de 1 ou 2 chiffres
+	const regex2 = /_f(\d{1,2})/;
+	const match2 = str.match(regex2);
+	// 3e test avec f suivi de 1 ou 2 chiffres puis _
+	const regex3 = /f(\d{1,2})_/;
+	const match3 = str.match(regex3);
+
+	const epsgByFuseau = [
+		"EPSG:2944", // fuseau 2
+		"EPSG:2945", // fuseau 3
+		"EPSG:2946", // fuseau 4
+		"EPSG:2947", // fuseau 5
+		"EPSG:2948", // fuseau 6
+		"EPSG:2949", // fuseau 7
+		"EPSG:2950", // fuseau 8
+		"EPSG:2951", // fuseau 9
+		"EPSG:2952" // fuseau 10
+	];
+
+	// Cherche le premier match valide dans l'ordre
+	const premierMatch = [match, match2, match3].find(m => m && m[1]);
+	if (premierMatch) {
+		const fuseau = parseInt(premierMatch[1], 10);
+		if (fuseau >= 2 && fuseau <= 10) {
+			return epsgByFuseau[fuseau - 2];
+		}
+	}
+	return null; // Pas de fuseau MTM valide trouvé
+};
+
+// Xavier : Vérifier si la projection est valide
+function verifyProjection(epsg) {
+	const validEpsgCodes = [
+		"EPSG:2944", // fuseau 2
+		"EPSG:2945", // fuseau 3
+		"EPSG:2946", // fuseau 4
+		"EPSG:2947", // fuseau 5
+		"EPSG:2948", // fuseau 6
+		"EPSG:2949", // fuseau 7
+		"EPSG:2950", // fuseau 8
+		"EPSG:2951", // fuseau 9
+		"EPSG:2952" // fuseau 10
+	];
+	return validEpsgCodes.includes(epsg);
+}
 
 export function convert_17(inputPaths, chosenPath, pointcloudName){
 	let message = `Starting conversion.<br>
@@ -181,7 +234,7 @@ export function convert_17(inputPaths, chosenPath, pointcloudName){
 	});
 }
 
-export function convert_20(inputPaths, chosenPath, pointcloudName){
+export function convert_20(inputPaths, chosenPath, pointcloudName, suggestedProjection){
 	let message = `Starting conversion.<br>
 	input: ${inputPaths}<br>
 	output: ${chosenPath}`;
@@ -190,57 +243,22 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 	const { spawn, fork, execFile } = require('child_process');
 
 	let exe = './libs/PotreeConverter2/PotreeConverter.exe';
-
-	// Xavier
-	function trouverFuseau(str) {
-		// _f suivi de 1 ou 2 chiffres, puis _
-		const regex = /_f(\d{1,2})_/;
-		const match = str.match(regex);
-		// 2e test avec _f suivi de 1 ou 2 chiffres
-		const regex2 = /_f(\d{1,2})/;
-		const match2 = str.match(regex2);
-		// 3e test avec f suivi de 1 ou 2 chiffres puis _
-		const regex3 = /f(\d{1,2})_/;
-		const match3 = str.match(regex3);
-
-		const epsgByFuseau = [
-			"EPSG:2944", // fuseau 2
-			"EPSG:2945", // fuseau 3
-			"EPSG:2946", // fuseau 4
-			"EPSG:2947", // fuseau 5
-			"EPSG:2948", // fuseau 6
-			"EPSG:2949", // fuseau 7
-			"EPSG:2950", // fuseau 8
-			"EPSG:2951", // fuseau 9
-			"EPSG:2952" // fuseau 10
-		];
-
-		// Cherche le premier match valide dans l'ordre
-		const premierMatch = [match, match2, match3].find(m => m && m[1]);
-		if (premierMatch) {
-			const fuseau = parseInt(premierMatch[1], 10);
-			if (fuseau >= 2 && fuseau <= 10) {
-				return epsgByFuseau[fuseau - 2];
-			}
-		}
-		return null; // Pas de fuseau MTM valide trouvé
-	};
 	
 	let parameters = [
 		...inputPaths,
 		"-o", chosenPath
 	];
 
-	// Trouver le fuseau MTM à partir du nom du point cloud
-	let epsg = trouverFuseau(pointcloudName);
-	// Vérifier si la projection est trrouvée
-	if (epsg !== null) {
+	
+	// Xavier: Vérifier la projection est suggérée
+	if (verifyProjection(suggestedProjection)) {
 		// Ajouter l'option de la projection à la conversion du point cloud
-    	parameters.push("--projection", epsg);
-		console.log("La projection MTM a été reconnue:", epsg);
+    	parameters.push("--projection", suggestedProjection);
+		console.log("La projection MTM a été reconnue:", suggestedProjection);
 	}
 	// Si la projection n'est pas trouvée, afficher un message d'avertissement à l'utilisateur
 	else {
+		suggestedProjection = null;
 		viewer.postError(`<b>Attention!</b> La projection du fichier n'a pas été reconu.<br>
 			Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
 			<br><br>
@@ -250,13 +268,13 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 		console.warn("Attention! La projection du fichier n'a pas été reconu dans le nom du fichier: ", pointcloudName);
 	}
 	// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
-	if (epsg !== null && epsg !== viewer.getProjection() && viewer.getProjection() !== null){
+	if (suggestedProjection !== null && suggestedProjection !== viewer.getProjection() && viewer.getProjection() !== null){
 		viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
 			Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.
 			<br><br>
 			Pour plus d'informations n'hésitez pas à contacter l'équipe du lidar mobile: 
 			<i>lidar.mobile@transports.gouv.qc.ca</i>`, {duration: 15000});
-		console.warn("La projetion des fichiers est différente: ", viewer.getProjection(), epsg); 
+		console.warn("La projetion des fichiers est différente: ", viewer.getProjection(), suggestedProjection); 
 	}
 
 	const converter = spawn(exe, parameters);
@@ -354,7 +372,7 @@ export function convert_20(inputPaths, chosenPath, pointcloudName){
 	});
 }
 
-export async function doConversion(inputPaths, suggestedDirectory, suggestedName){
+export async function doConversion(inputPaths, suggestedDirectory, suggestedName, suggestedProjection){
 
 	const fs = require("fs");
 	const npath = require("path");
@@ -380,6 +398,13 @@ export async function doConversion(inputPaths, suggestedDirectory, suggestedName
 	// let elPickTargetDir = document.getElementById("converter_panel_pick_target_directory");
 	let elCancel = document.getElementById("converter_panel_cancel");
 	let elStart = document.getElementById("converter_panel_start");
+	// Xavier: Indiquer la projection suggérée dans le panneau de conversion
+	let elProjection = document.getElementById("converter_panel_projection");
+	if (suggestedProjection) {
+		elProjection.value = suggestedProjection;
+	} else {
+		elProjection.value = ''; 
+	}
 
 	elPanel.style.display = "block";
 
@@ -448,7 +473,7 @@ export async function doConversion(inputPaths, suggestedDirectory, suggestedName
 			convert_17(inputPaths, targetDirectory, suggestedName);
 		}else if(el_2_0.checked){
 			// console.log("convert 2.0");
-			convert_20(inputPaths, targetDirectory, suggestedName);
+			convert_20(inputPaths, targetDirectory, suggestedName, elProjection.value);
 		}
 
 
@@ -508,6 +533,8 @@ export async function dropHandler(event){
 	hideDropzones();
 
 	let u = event.clientX / document.body.clientWidth;
+	// Xavier: mettre une projection par défault
+	let suggestedProjection = null
 
 	console.log(u);
 
@@ -558,6 +585,8 @@ export async function dropHandler(event){
 
 			if(whitelist.includes(extension)){
 				lasLazFiles.push(file.path);
+				// Xavier: trouver le fuseau MTM à partir du nom du fichier
+				suggestedProjection = trouverFuseau(file.name);
 
 				if(suggestedDirectory == null){
 					suggestedDirectory = np.normalize(`${path}/..`);
@@ -600,7 +629,7 @@ export async function dropHandler(event){
 	// console.log(lasLazFiles);
 
 	if(lasLazFiles.length > 0){
-		doConversion(lasLazFiles, suggestedDirectory, suggestedName);
+		doConversion(lasLazFiles, suggestedDirectory, suggestedName, suggestedProjection);
 	}
 
 	for(const cloudjs of cloudJsFiles){
