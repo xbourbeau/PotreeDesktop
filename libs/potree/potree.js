@@ -64656,11 +64656,94 @@ void main() {
     	simulateDragDrop(filePath);
 	}
 
+	// Xavier: Lookup table qui associ une projection à un fuseau 
+	const MTM_FUSEAU_LOOKUP = {
+		// NAD83(CSRS) MTM Zones (Quebec/Ontario)
+		'EPSG:2944': 2,
+		'EPSG:2945': 3,
+		'EPSG:2946': 4,
+		'EPSG:2947': 5,
+		'EPSG:2948': 6,
+		'EPSG:2949': 7,
+		'EPSG:2950': 8,
+		'EPSG:2951': 9,
+		'EPSG:2952': 10,
+		// NAD83(Original) MTM Zones (Quebec/Ontario)
+		'EPSG:32182': 2, 
+		'EPSG:32183': 3, 
+		'EPSG:32184': 4, 
+		'EPSG:32185': 5, 
+		'EPSG:32186': 6, 
+		'EPSG:32187': 7, 
+		'EPSG:32188': 8, 
+		'EPSG:32189': 9, 
+		'EPSG:32190': 10
+	};
+
+	// Xavier: Fonction qui permet de retourner le fuseau d'une projection
+	function getFuseauFromEPSG(epsg) {
+		// 1. Ensure the key is in the 'EPSG:XXXX' string format
+		let key = String(epsg).toUpperCase();
+		if (!key.startsWith('EPSG:')) {
+			key = `EPSG:${key}`;
+		}
+		// 2. Look up the value in the manual association table
+		const fuseau = MTM_FUSEAU_LOOKUP[key];
+		// 3. Return the fuseau or null if not in the list
+		return fuseau !== undefined ? fuseau : null;
+	}
+
+	// Xavier: Fonction qui permet de trasformer ponctuellement un point de NAD83 (CSRS) vers NAD83 (Original)
+	async function resquestNAD83Transform(x, y, fuseau) {
+		// Définir l'URL de NRCan qui permet de transformer une coordonnée de NAD83 (CSRS) vers NAD83 (Original)
+		let url = (`https://webapp.csrs-scrs.nrcan-rncan.gc.ca/CSRS/tools/NTV2/inverse?\
+				lang=fr&\
+				proj=plan&\
+				westpos=true&\
+				zone=QC-${fuseau}&\
+				x=${x}&\
+				y=${y}&\
+				grid=NA83SCRS&\
+				destproj=plan&\
+				destzone=QC-${fuseau}`).replace(/\s+/g, '');
+		// Écrire la requete utilisé dans la console
+		console.log("Transformation NRCan: ", url)
+
+		// Fetch avec options spécifiques pour forcer la lecture du contenu
+		return fetch(url, {
+			method: 'GET',
+			headers: {
+				'Accept': 'application/vnd.ogc.gml, text/xml, */*',
+				'Cache-Control': 'no-cache'
+			},
+			// Important : ne pas suivre les redirections de téléchargement automatique
+			redirect: 'follow'
+		})
+		.then(response => {
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+			// Forcer la lecture comme texte même si le serveur suggère un téléchargement
+			return response.text();
+		})
+		.then(jsonText => {
+			// Parse le texte en objet JSON
+			const json = JSON.parse(jsonText);
+			// Retourner les coordonnées X et Y transformer
+			return [json.Transformed.X, json.Transformed.Y]
+		})
+	}
+
 	// Xavier: Fonction pour determiner un [rtss, chainage, dist] selon une position lat/lon
 	async function resquestChainage(x, y, projection) {
-
+		// Trouver le fuseau de la projection
+		let fuseau = getFuseauFromEPSG(projection)
+		// Transformer les coordonnées du Nad83(CSRS) vers Nad83(Original)
+		let [new_x, new_y] = await resquestNAD83Transform(x, y, fuseau)
+		// Définir la projection MTM dans le même fuseau, mais en Nad83(Original)
+		let nad83_projection = `EPSG:${32180 + fuseau}`
 		// Définir les systèmes de coordonnées
-		let [longitude, latitude] = proj4(projection, 'EPSG:4326', [x, y]);
+		let [longitude, latitude] = proj4(nad83_projection, 'EPSG:4326', [new_x, new_y]);
 
 		let url = (`https://ws.mapserver.mtq.min.intra/applicatif?\
 				long=${longitude}&\
@@ -64710,6 +64793,55 @@ void main() {
 				localisation.push(offsetTrace);
 				return localisation
 			})
+	}
+
+	// Xavier: Fonction qui permet de retourner l'ID de la trace SVN la plus récente à une position donnée
+	async function resquestSVNTrace(x, y, epsg, rayon) {
+		try {
+			let url = `https://svn360.mtq.min.intra/api/Trace/CoordonneeX/${x}/CoordonneeY/${y}/Epsg/${epsg}/Rayon/${rayon}`
+			// Fetch avec options spécifiques pour forcer la lecture du contenu
+			const response = await fetch(url, {
+				method: 'GET',
+				credentials: 'include',
+				headers: {'Accept': 'application/json'}
+			})
+
+			if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`)}
+
+			const data = await response.json();
+			const traces = data.traces || [];
+			if (!traces.length) return null;
+			const latestTrace = traces.reduce((a, b) => b.valAnnee > a.valAnnee ? b : a);
+    		return latestTrace.ideTrace;
+
+		} catch (err) {
+			console.error("Erreur:", err.message);
+			return null;
+		}
+	}
+
+	// Xavier: Fonction qui permet de retourner l'azimut d'une trace SVN à une position donnée
+	async function resquestSVNAzimuth(trace_id, x, y, epsg, rayon) {
+		try {
+			let url = `https://svn360.mtq.min.intra/api/PositionGps/Trace/${trace_id}/CoordonneeX/${x}/CoordonneeY/${y}/Epsg/${epsg}/Rayon/${rayon}`
+
+			// Fetch avec options spécifiques pour forcer la lecture du contenu
+			const response = await fetch(url, {
+				method: 'GET',
+				credentials: 'include',   // REQUIRED for Windows auth
+				headers: {'Accept': 'application/json'}
+			})
+
+			if (!response.ok) {throw new Error(`HTTP error! status: ${response.status}`)}
+
+			const data = await response.json();
+			const traces = data.positionGps || [];			
+			return traces.valHeadn || 0;
+
+		} catch (err) {
+			console.error("Erreur:", err.message);
+			return null;
+		}
 	}
 
 	function createAnnotationsData(viewer){
@@ -71923,7 +72055,17 @@ void main() {
 		['EPSG:26917', '+proj=utm +zone=17 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		['EPSG:26918', '+proj=utm +zone=18 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
 		['EPSG:26919', '+proj=utm +zone=19 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs '],
-		// Xavier Ajouter les références des EPSG des Fuseau MTM possible
+		// Xavier Ajouter les références des EPSG des Fuseau MTM possible Nad83 (original)
+		['EPSG:32182', '+proj=tmerc +lat_0=0 +lon_0=-56 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs'],
+		['EPSG:32183', '+proj=tmerc +lat_0=0 +lon_0=-58.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +nadgrids=ca_nrc_NA83SCRS.tif +units=m +no_defs +type=crs'],
+		['EPSG:32184', '+proj=tmerc +lat_0=0 +lon_0=-61.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +nadgrids=ca_nrc_NA83SCRS.tif +units=m +no_defs +type=crs'],
+		['EPSG:32185', '+proj=tmerc +lat_0=0 +lon_0=-64.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +nadgrids=ca_nrc_NA83SCRS.tif +units=m +no_defs +type=crs'],
+		['EPSG:32186', '+proj=tmerc +lat_0=0 +lon_0=-67.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +nadgrids=ca_nrc_NA83SCRS.tif +units=m +no_defs +type=crs'],
+		['EPSG:32187', '+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +nadgrids=ca_nrc_NA83SCRS.tif +units=m +no_defs +type=crs'],
+		['EPSG:32188', '+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs'],
+		['EPSG:32189', '+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs'],
+		['EPSG:32190', '+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs'],
+		// Xavier Ajouter les références des EPSG des Fuseau MTM possible Nad83 (CSRS)
 		['EPSG:2944', '+proj=tmerc +lat_0=0 +lon_0=-55.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2945', '+proj=tmerc +lat_0=0 +lon_0=-58.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2946', '+proj=tmerc +lat_0=0 +lon_0=-61.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
@@ -71932,7 +72074,9 @@ void main() {
 		['EPSG:2949', '+proj=tmerc +lat_0=0 +lon_0=-70.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2950', '+proj=tmerc +lat_0=0 +lon_0=-73.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
 		['EPSG:2951', '+proj=tmerc +lat_0=0 +lon_0=-76.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
-		['EPSG:2952', '+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs']
+		['EPSG:2952', '+proj=tmerc +lat_0=0 +lon_0=-79.5 +k=0.9999 +x_0=304800 +y_0=0 +ellps=GRS80 +towgs84=-0.991,1.9072,0.5129,-1.25033e-07,-4.6785e-08,-5.6529e-08,0 +units=m +no_defs +type=crs'],
+		['EPSG:4617', '+proj=longlat +ellps=GRS80 +no_defs +type=crs']
+	
 	]);
 
 	class MapView{
@@ -81682,8 +81826,8 @@ ENDSEC
 					try {
 						// Récupérer la projection de la vue
 						let projection = viewer.getProjection();
-						// Vérifier si la projection de la vue est défini
-						if (!projection) {
+						// Vérifier si la projection de la vue est défini et s'il y a au moins un nuage de point
+						if (!projection && viewer.scene.pointclouds.length !== 0) {
 							// Afficher un message d'erreur à l'utilisateur 
 							viewer.postMessage(`<b>Attention!</b> La projection du nuage de point n'est pas reconnu.<br>
 								Il est possible que la vue ouverte ne soit pas adéquate.
@@ -83598,10 +83742,14 @@ ENDSEC
 			this.sg = new SphereGeometry(0.2);
 			this.sm = new MeshNormalMaterial();
 			this.s = new Mesh(this.sg, this.sm);
+			this.first_coord = new Vector3(0, 0, 1);
 		}
 
 		startInsertion (args = {}) {
-			let message = `Cliquer sur un point pour ouvrir la vue dans SVN360`
+			let message = `Cliquer sur un point pour ouvrir la vue dans SVN360.<br><br>
+			<span style="font-size:70%">
+			<i>Tip: En gardant la souris enfoncée, vous pouvez choisir la direction de la vue dans SVN360.</i>
+			</span>`;
 			viewer.postMessage(message, {duration: 4000})
 
 			let drag = (e) => {
@@ -83616,9 +83764,15 @@ ENDSEC
 				if (I) {
 					this.s.position.copy(I.location);
 				};
+
+				// Si la souris n'est pas enfoncée, on conserve la position du point
+				// pour la direction de la vue dans Google StreetView
+				if (e.drag.mouse !== MOUSE$1.LEFT) {
+					this.first_coord.copy(this.s.position)
+				}
 			};
 
-			let drop = (e) => {
+			let drop = async (e) => {
 				try {
 					// Cancel les suivi de click dans la vue
 					cancel();
@@ -83642,12 +83796,32 @@ ENDSEC
 							// Avertir l'utilisateur que aucune point n'est cliquée
 							viewer.postMessage("Aucun point n'a été trouvée!")
 						}
-					// Une projection est définie, on converti les coordonnées du point
+					// Une projection est définie, on convertit les coordonnées du point
 					} else {
-						// Convertir la position du point dans le système de coordonnées EPSG:4326
-						let pt_converted = proj4(projection, 'EPSG:4326', [this.s.position.x, this.s.position.y]);
-						// Ouvrir le lien SVN360 avec les coordonnées du point
-						openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4326&rayon=50`);
+						// Convertir la position du point dans le système de coordonnées EPSG:4617
+						let pt_converted = proj4(projection, 'EPSG:4617', [this.first_coord.x, this.first_coord.y]);
+						// Calculer la distance horizontale entre les 2 points
+						const dist = Math.sqrt(Math.pow(this.s.position.x - this.first_coord.x, 2) + Math.pow(this.s.position.y - this.first_coord.y, 2));
+						// Si la distance est nulle, on ouvre la page sans azimut
+						if (dist <= 0.0) {
+							openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4617&rayon=10`)
+						} else {
+							// Calculer l'azimut horizontal entre les 2 points
+							let az = Utils.computeAzimuth(this.first_coord, this.s.position);
+							let az_deg = MathUtils.radToDeg(az);
+							// Calculer l'azimut vertical entre les 2 points
+							let vz = Utils.computeAzimuth(new Vector3(0, this.first_coord.z, 1), new Vector3(dist, this.s.position.z , 1));
+							let vz_deg = MathUtils.radToDeg(vz) - 90;
+							
+							// Requête pour obtenir le traceID du lidar mobile le plus proche et le plus récent
+							const traceid = await resquestSVNTrace(pt_converted[0], pt_converted[1], '4617', '10')
+							// Requête pour obtenir l'azimut du camion lidar 
+							const azimuth_camion = await resquestSVNAzimuth(traceid, pt_converted[0], pt_converted[1], '4617', '10')
+							// calculer l'azimut horizontal relatif pour SVN360
+							let h_az = 360 - (azimuth_camion - az_deg)
+							// Ouvrir le lien SVN360 avec les coordonnées du point
+							openExternal(`https://svn360.mtq.min.intra/?x=${pt_converted[0]}&y=${pt_converted[1]}&Epsg=4617&rayon=10&ahoriz=${h_az}&achamv=55&avert=${vz_deg}`);
+						}
 					}
 				// Attraper toutes erreurs, mais ouvrir la page par défault
 				} catch (err) {
@@ -89701,7 +89875,7 @@ ENDSEC
 				this.setPointBudget(1*1000*1000);
 				this.setShowBoundingBox(false);
 				this.setFreeze(false);
-				// xavier
+				// Xavier
 				// Set the quality to hight by default
 				this.useHQ = true
 				// Set the navigation tool by default to EarthControls
