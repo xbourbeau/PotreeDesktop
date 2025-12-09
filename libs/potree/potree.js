@@ -53897,6 +53897,8 @@
 			this.chainage = '...'
 			this.rtss = '...'
 			this.offsetTrace = '...'
+			this.longitude = '...'
+			this.latitude = '...'
 			this.proj = null
 			this.hoverTimer = null;
 			this.hoverThreshold = 1500
@@ -54124,11 +54126,13 @@
 					this.chainage = '...'
 					this.rtss = '...'
 					this.offsetTrace = '...'
+					this.longitude = '...'
+					this.latitude = '...'
 				}
 				// Démarrer un nouveau timer
 				this.hoverTimer = setTimeout(async () => {
 					// Une fois le timer écoulé, on effectue la requête pour obtenir le chainage
-					[this.rtss, this.chainage, this.offsetTrace]  = await resquestChainage(point.position.x, point.position.y, this.proj, this.chainage)
+					[this.rtss, this.chainage, this.offsetTrace, this.longitude, this.latitude]  = await resquestChainage(point.position.x, point.position.y, this.proj, this.chainage)
 					let event = {
 						type: 'chainage_updated',
 						measure: this,
@@ -64524,8 +64528,13 @@ void main() {
 
 	// Xavier
 	const { shell } = require('electron');
+	const { exec } = require("child_process");
 	function openExternal(url) {
-		shell.openExternal(url);
+		shell.openExternal(url).catch(err => {
+        	console.error("Failed to open external URL (probablement du au navigateur par défault qui n'est pas Edge):", err);
+			exec(`start microsoft-edge:${url}`);
+    	});
+
 	}
 
 	// Xavier: Fonction pour parser une réponse GML et extraire les liens des fichiers
@@ -64639,10 +64648,24 @@ void main() {
 		const os = require('os');
 		const fs = require('fs');
 		const path = require('path');
-		
+		// Définir le nom du fichier laz et le chemin de téléchargement		
 		const fileName = path.basename(new URL(url).pathname);
 		const filePath = path.join(path.join(os.homedir(), 'Downloads'), fileName);
 
+		const cleanFileName = fileName
+			.replace(/\.[^/.]+$/, "")  // remove extension
+			.trim()
+			.toLowerCase();
+		
+		// Vérifier si le fichier est déjà chargé dans la scène
+		let exists = viewer.scene.pointclouds.some(pc =>
+			pc.name.toLowerCase().includes(cleanFileName.toLowerCase())
+		);
+		// Informer si le fichier est déjà chargé
+		if (exists) {
+			viewer.postMessage(`Le fichier <br><i>${fileName}</i><br> est déjà chargé dans la scène.`, {duration: 1000});
+			return;
+		}
 		console.log("File path:", filePath);
 		// Afficher un message d'erreur à l'utilisateur 
 		viewer.postMessage(`Téléchargement du fichier laz:<br><i>${fileName}</i>`, {duration: 15000});
@@ -64791,6 +64814,8 @@ void main() {
 				const offsetTrace = geojson.features[0].properties.dist
 				let localisation = etiquette.split(' ');
 				localisation.push(offsetTrace);
+				localisation.push(longitude);
+				localisation.push(latitude);
 				return localisation
 			})
 	}
@@ -72272,6 +72297,22 @@ void main() {
 				visible: false
 			});
 
+			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2025
+			let index_lidar_2025 = new ol.layer.Image({
+				source: new ol.source.ImageWMS({
+					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
+					params:{
+						'LAYERS': 'lidar_mobile_trace_lineaire_routier2025',
+						'VERSION': '1.3.0',
+						'FORMAT': 'image/png',
+						'TRANSPARENT': true,
+						'CRS': 'EPSG:3857'
+					},
+					serverType: 'mapserver', 
+					crossOrigin: 'anonymous'}),
+				visible: false
+			});
+
 			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2024
 			let index_lidar_2024 = new ol.layer.Image({
 				source: new ol.source.ImageWMS({
@@ -72379,6 +72420,21 @@ void main() {
 				btToggleChainage.style.float = 'left';
 				btToggleChainage.title = 'Afficher / masquer le chaînage';
 
+				// Xavier TOGGLE Télécharment LIDAR 2025
+				let btToggleLidar2025 = document.createElement('button');
+				btToggleLidar2025.innerHTML = '2025';
+				btToggleLidar2025.addEventListener('click', () => {
+					index_lidar_2025.setVisible(!index_lidar_2025.getVisible());
+					// Désactiver les autres couches
+					index_lidar_2021.setVisible(false);
+					index_lidar_2023.setVisible(false);
+					index_lidar_2022.setVisible(false);
+					index_lidar_2024.setVisible(false);
+				}, false);
+				btToggleLidar2025.style.float = 'left';
+				btToggleLidar2025.title = 'Téléchargement des données LiDAR Mobile 2025';
+				btToggleLidar2025.style.width = '3em';
+
 				// Xavier TOGGLE Télécharment LIDAR 2024
 				let btToggleLidar2024 = document.createElement('button');
 				btToggleLidar2024.innerHTML = '2024';
@@ -72399,6 +72455,7 @@ void main() {
 				btToggleLidar2023.addEventListener('click', () => {
 					index_lidar_2023.setVisible(!index_lidar_2023.getVisible());
 					// Désactiver les autres couches
+					index_lidar_2025.setVisible(false);
 					index_lidar_2024.setVisible(false);
 					index_lidar_2021.setVisible(false);
 					index_lidar_2022.setVisible(false);
@@ -72413,6 +72470,7 @@ void main() {
 				btToggleLidar2022.addEventListener('click', () => {
 					index_lidar_2022.setVisible(!index_lidar_2022.getVisible());
 					// Désactiver les autres couches
+					index_lidar_2025.setVisible(false);
 					index_lidar_2024.setVisible(false);
 					index_lidar_2023.setVisible(false);
 					index_lidar_2021.setVisible(false);
@@ -72428,6 +72486,7 @@ void main() {
 					index_lidar_2021.setVisible(!index_lidar_2021.getVisible());
 					// Désactiver les autres couches
 					index_lidar_2024.setVisible(false);
+					index_lidar_2025.setVisible(false);
 					index_lidar_2023.setVisible(false);
 					index_lidar_2022.setVisible(false);
 
@@ -72485,6 +72544,7 @@ void main() {
 				// Xavier Ajouter le bouton pour activer et desactiver la couche de chaînage
 				element.appendChild(btToggleChainage);
 				// Xavier Ajouter le bouton pour activer et desactiver les couches de téléchargement LIDAR Mobile
+				element.appendChild(btToggleLidar2025);
 				element.appendChild(btToggleLidar2024);
 				element.appendChild(btToggleLidar2023);
 				element.appendChild(btToggleLidar2022);
@@ -72514,6 +72574,7 @@ void main() {
 					// Xavier: Ajouter les couches à la carte
 					imagerie_aerienne,
 					fond_MTMD,
+					index_lidar_2025,
 					index_lidar_2024,
 					index_lidar_2023,
 					index_lidar_2022,
@@ -72578,6 +72639,9 @@ void main() {
 			this.map.on('singleclick', (evt) => {
     			let layerName = null
 				// Vérifier quelle année d'index est active
+				if (index_lidar_2025.getVisible() === true){
+					layerName = 'lidar_mobile_trace_lineaire_routier2025'
+				}
 				if (index_lidar_2024.getVisible() === true){
 					layerName = 'lidar_mobile_trace_lineaire_routier2024'
 				}
@@ -73139,7 +73203,7 @@ void main() {
 		set sourcesVisible (value) {
 			this.getSourcesLayer().setVisible(value);
 		}
-
+		// Xavier
 		displayFeatureAttributes(links, coordinate) {	
 			// Supprimer les popups existants
 			const existingOverlays = this.map.getOverlays().getArray().slice();
@@ -75398,7 +75462,13 @@ ENDSEC
 			let rtss = this.measurement.rtss
 			let chainage = this.measurement.chainage
 			let dist = this.measurement.offsetTrace
-			// Ajouter un row pour chaque propriété: RTSS, Chainage, Distance
+			let longitude = this.measurement.longitude
+			let latitude = this.measurement.latitude
+			
+			let z = null
+			for (let point of this.measurement.points) {z = point.position.z};
+			
+			// Ajouter un row pour chaque propriété: RTSS, Chainage, Distance, Coords (lat/long)
 
 			// ========== RTSS ==========
 			let row_rtss = $(`
@@ -75412,7 +75482,7 @@ ENDSEC
 			this.elCopy = row_rtss.find("img[name=copy_rtss]");
 			this.elCopy.click( () => {
 				Utils.clipboardCopy(rtss);
-				this.viewer.postMessage(`Copied RTSS to clipboard: ${rtss}`, {duration: 2000});
+				this.viewer.postMessage(`Copied RTSS to clipboard: ${rtss}`, {duration: 1000});
 			});
 			table.append(row_rtss);
 
@@ -75428,15 +75498,19 @@ ENDSEC
 			this.elCopy = row_chainage.find("img[name=copy_chainage]");
 			this.elCopy.click( () => {
 				Utils.clipboardCopy(chainage);
-				this.viewer.postMessage(`Copied chainage to clipboard: ${chainage}`, {duration: 2000});
+				this.viewer.postMessage(`Copied chainage to clipboard: ${chainage}`, {duration: 1000});
 			});
 			table.append(row_chainage);
 
 			// ========== Distance offset ==========
+			let dist_format = "..."
+			if (dist != "..."){
+				dist_format = `${Math.round(dist * 1000) / 1000}`
+			}
 			let row_dist = $(`
 			<tr>
-				<td><b>Offset: </b></td>
-				<td align="right">${dist}</td>
+				<td><b>Offset&nbsp(m): </b></td>
+				<td align="right">${dist_format}</td>
 				<td align="right" style="width: 25%">
 					<img name="copy_dist" title="copy" class="button-icon" src="${copyIconPath}" style="width: 16px; height: 16px"/>
 				</td>
@@ -75444,9 +75518,53 @@ ENDSEC
 			this.elCopy = row_dist.find("img[name=copy_dist]");
 			this.elCopy.click( () => {
 				Utils.clipboardCopy(dist);
-				this.viewer.postMessage(`Copied offset to clipboard: ${dist}`, {duration: 2000});
+				this.viewer.postMessage(`Copied offset to clipboard: ${dist_format}`, {duration: 1000});
 			});
 			table.append(row_dist);
+
+			// ========== Coords (long/lat) ==========
+			let display_coords = "..."
+			let copy_coords = "..."
+			if (longitude != "..." && latitude != "..."){
+				copy_coords = `${Math.round(longitude * 1000000) / 1000000}, ${Math.round(latitude * 1000000) / 1000000}`
+				display_coords = `${Math.round(longitude * 1000000) / 1000000},&nbsp${Math.round(latitude * 1000000) / 1000000}`
+			}
+
+			let row_coords = $(`
+			<tr>
+				<td><b>Long,&nbsplat: </b></td>
+				<td align="right">${display_coords}</td>
+				<td align="right" style="width: 25%">
+					<img name="copy_dist" title="copy" class="button-icon" src="${copyIconPath}" style="width: 16px; height: 16px"/>
+				</td>
+			</tr>`);
+			this.elCopy = row_coords.find("img[name=copy_dist]");
+			this.elCopy.click( () => {
+				Utils.clipboardCopy(copy_coords);
+				this.viewer.postMessage(`Copied offset to clipboard: ${copy_coords}`, {duration: 1000});
+			});
+			table.append(row_coords);
+
+			// ========== Z ==========
+			if (longitude != "..." && latitude != "..."){
+				copy_coords = `${Math.round(longitude * 1000000) / 1000000}, ${Math.round(latitude * 1000000) / 1000000}`
+				display_coords = `${Math.round(longitude * 1000000) / 1000000},&nbsp${Math.round(latitude * 1000000) / 1000000}`
+			}
+			z = Math.round(z * 100) / 100
+			let row_z = $(`
+			<tr>
+				<td><b>Z: </b></td>
+				<td align="right">${z}</td>
+				<td align="right" style="width: 25%">
+					<img name="copy_dist" title="copy" class="button-icon" src="${copyIconPath}" style="width: 16px; height: 16px"/>
+				</td>
+			</tr>`);
+			this.elCopy = row_z.find("img[name=copy_dist]");
+			this.elCopy.click( () => {
+				Utils.clipboardCopy(z);
+				this.viewer.postMessage(`Copied offset to clipboard: ${z}`, {duration: 1000});
+			});
+			table.append(row_z);
 
 			return table;
 		};
@@ -81840,12 +81958,12 @@ ENDSEC
 							// Convertir les coordonnées du point de vue actuel vers EPSG:4326
 							let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
 							// Ouvrir SIGO avec les coordonnée de la vue actuelle
-							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)`);
+							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=85f34b7c-3ff2-e58c-9c25-8b61d524c530,7f4217c6-f1cb-cbe1-0385-8907231200b7,49b29075-674c-0d58-d340-71564f9b2b21,8f804fe9-40ee-5da8-5145-38016283e4a4,8e8a28bee92d72f3edc64f712fd3f8a7,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2025:igoz103,lidar_mobile_trace_lineaire_routier2024:igoz99,lidar_mobile_trace_lineaire_routier2023:igoz97,lidar_mobile_trace_lineaire_routier2022:igoz96,lidar_mobile_trace_lineaire_routier2021:igoz95)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21`);
 					}
 					}
 					catch (error) {
 						// Ouvrir la page par défaut de SIGO en cas d'erreur
-						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=a7c060c5-8d26-6bba-c7ed-b8a6443ea37c,e3b04dbe-f943-53d4-e557-eee43fc38ae9,534d516c-354d-4399-025a-29fb7e81aee4,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2024:igoz89,lidar_mobile_trace_lineaire_routier2023:igoz87,lidar_mobile_trace_lineaire_routier2022:igoz86,lidar_mobile_trace_lineaire_routier2021:igoz85)')
+						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=85f34b7c-3ff2-e58c-9c25-8b61d524c530,7f4217c6-f1cb-cbe1-0385-8907231200b7,49b29075-674c-0d58-d340-71564f9b2b21,8f804fe9-40ee-5da8-5145-38016283e4a4,8e8a28bee92d72f3edc64f712fd3f8a7,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2025:igoz103,lidar_mobile_trace_lineaire_routier2024:igoz99,lidar_mobile_trace_lineaire_routier2023:igoz97,lidar_mobile_trace_lineaire_routier2022:igoz96,lidar_mobile_trace_lineaire_routier2021:igoz95)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21')
 						// Affichier un error dans la console
 						console.warn("Error à l'ouverture de SIGO", error);
 					};

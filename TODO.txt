@@ -1,0 +1,21 @@
+Limitation
+================================
+
+1) 	Le SCR n'est pas reconnu par PotreeConverter, il faut donc le spécifier.
+
+2) 	Seulement 1 SCR possible par vue, donc ça ne fonctionne pas
+	si les nuages ne sont pas tous dans le même SCR.
+
+3) 	
+
+
+Amélioration
+================================
+
+- Ajouter la couche de téléchargment des lidars 2025
+
+- Meilleur gestion et information sur les nuages de points télécharger
+
+- Ajouter les coordonnées (lat/long) d'un point en WGS83 
+
+- Intégrer Celsium
