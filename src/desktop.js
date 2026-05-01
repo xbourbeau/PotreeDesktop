@@ -21,7 +21,7 @@ export function loadDroppedPointcloud(cloudjsPath){
 
 		material.size = 1;
 		material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-		// Xavier
+
 		// Vérifier si la projection du fichier est différente de la projection des fichiers précédament importé
 		if (pointcloud.projection !== null && pointcloud.projection !== viewer.getProjection() && viewer.getProjection() !== null){
 			viewer.postError(`<b>Attention!</b> La projection du fichier est différente de la projection des fichiers précédament importé.<br>
@@ -35,8 +35,10 @@ export function loadDroppedPointcloud(cloudjsPath){
 			lblProjection.css("color", "red");
 			lblProjection.attr("title", "Attention! Il y a présentement plusieurs nuage de point dans des projections différente. Il est possible que les outils de la barre Transport ne fonctionnent pas adéquatement.");
 		}
-
-		viewer.zoomTo(e.pointcloud);
+		// Xavier: Zoomer seulement sur le premier nuage de point ajouter
+		if(viewer.scene.pointclouds.length <= 1) {
+			viewer.zoomTo(e.pointcloud);
+		}
 	});
 };
 
@@ -73,7 +75,11 @@ export function createPlaceholder(aabb){
 	viewer.scene.scene.add(box3);
 
 	const camera = viewer.scene.getActiveCamera();
-	viewer.zoomTo(node);
+	//viewer.zoomTo(node);
+	// Xavier: Zoomer seulement sur le premier nuage de point ajouter
+	if(viewer.scene.pointclouds.length < 1) {
+		viewer.zoomTo(node);
+	}
 
 	placeholder.text = text;
 	placeholder.box = box3;
@@ -86,8 +92,37 @@ export function createPlaceholder(aabb){
 	return placeholder;
 }
 
+// Xavier : Permet de trouver le CRS du point cloud
+function trouverFuseau(file) {
+	return trouverFuseauPDAL(file)
+}
+
+// Xavier : Permet de trouver le CRS du point cloud avec PDAL
+function trouverFuseauPDAL(file) {
+	// Permet de faire la transformation d'une coordonnées
+	const { execFileSync } = require("child_process");
+	const pathlib = require('path')
+	// Chemin du pipeline de PROJ
+	const path_to_pdal = pathlib.join(pathlib.join(__dirname, "libs/proj"), "bin/pdal.exe");
+
+	// Exécuter la commande
+	const result = execFileSync(
+		path_to_pdal,
+		["info", file, "--metadata"]
+	);
+	
+	let laz_crs = null
+	const crs_info = JSON.parse(result).metadata.srs.json
+	if (crs_info.type == "CompoundCRS") {
+		laz_crs = crs_info.components[0].source_crs.id
+	} else {
+		laz_crs = crs_info.id
+	}
+	return `${laz_crs.authority}:${laz_crs.code}`
+}
+
 // Xavier : Trouver le fuseau MTM à partir du nom du point cloud
-function trouverFuseau(str) {
+function trouverFuseauByName(str) {
 	// _f suivi de 1 ou 2 chiffres, puis _
 	const regex = /_f(\d{1,2})_/;
 	const match = str.match(regex);
@@ -228,7 +263,7 @@ export function convert_17(inputPaths, chosenPath, pointcloudName){
 			let material = e.pointcloud.material;
 			material.size = 1;
 			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-
+			// Xavier: Desactiver le zoom
 			//viewer.zoomTo(e.pointcloud);
 		});
 	});
@@ -248,7 +283,6 @@ export function convert_20(inputPaths, chosenPath, pointcloudName, suggestedProj
 		...inputPaths,
 		"-o", chosenPath
 	];
-
 	
 	// Xavier: Vérifier la projection est suggérée
 	if (verifyProjection(suggestedProjection)) {
@@ -365,8 +399,10 @@ export function convert_20(inputPaths, chosenPath, pointcloudName, suggestedProj
 			material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
 
 			viewer.scene.addPointCloud(pointcloud);
+			
 			//viewer.fitToScreen();
-			viewer.zoomTo(e.pointcloud);
+			// Xavier: Desactiver le zoom
+			//viewer.zoomTo(e.pointcloud);
 		});
 
 	});
@@ -585,8 +621,8 @@ export async function dropHandler(event){
 
 			if(whitelist.includes(extension)){
 				lasLazFiles.push(file.path);
-				// Xavier: trouver le fuseau MTM à partir du nom du fichier
-				suggestedProjection = trouverFuseau(file.name);
+				// Xavier: Trouver la projection du laz en utilisant PDAL pour comprendre les compounds crs
+				suggestedProjection = trouverFuseau(file.path);
 
 				if(suggestedDirectory == null){
 					suggestedDirectory = np.normalize(`${path}/..`);

@@ -1,3 +1,5 @@
+const { Transform } = require('stream');
+
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -3886,6 +3888,21 @@
 			const dx = this.x - v.x, dy = this.y - v.y, dz = this.z - v.z;
 
 			return dx * dx + dy * dy + dz * dz;
+
+		}
+		// Xavier: Ajouter une fonction pour calculer la distance horizontal
+		distanceHorzTo( v ) {
+
+			return Math.sqrt( this.distanceHorzToSquared( v ) );
+
+		}
+
+		// Xavier: Ajouter une fonction pour caluculer la distance horizontal
+		distanceHorzToSquared( v ) {
+
+			const dx = this.x - v.x, dy = this.y - v.y
+
+			return dx * dx + dy * dy
 
 		}
 
@@ -53625,6 +53642,30 @@
 		return heightEdge;
 	}
 
+	// Xavier: Créer une ligne  pour représenter les distance horizontal (xy)
+	function createWidthLine(){
+		let lineGeometry = new LineGeometry();
+
+		lineGeometry.setPositions([
+			0, 0, 0,
+			0, 0, 0,
+		]);
+
+		let lineMaterial = new LineMaterial({ 
+			color: 0x00ff00, 
+			dashSize: 5, 
+			gapSize: 2,
+			linewidth: 2, 
+			resolution:  new Vector2(1000, 1000),
+		});
+
+		lineMaterial.depthTest = false;
+		const widthtEdge = new Line2(lineGeometry, lineMaterial);
+		widthtEdge.visible = false;
+		
+		return widthtEdge;
+	}
+
 	function createHeightLabel(){
 		const heightLabel = new TextSprite('');
 
@@ -53637,6 +53678,21 @@
 		heightLabel.visible = false;
 
 		return heightLabel;
+	}
+	
+	// Xavier: Créer une annotation pour les distance horizontal (xy)
+	function createWidthLabel(){
+		const widthLabel = new TextSprite('');
+
+		widthLabel.setTextColor({r: 140, g: 250, b: 140, a: 1.0});
+		widthLabel.setBorderColor({r: 0, g: 0, b: 0, a: 1.0});
+		widthLabel.setBackgroundColor({r: 0, g: 0, b: 0, a: 1.0});
+		widthLabel.fontsize = 16;
+		widthLabel.material.depthTest = false;
+		widthLabel.material.opacity = 1;
+		widthLabel.visible = false;
+
+		return widthLabel;
 	}
 
 	function createAreaLabel(){
@@ -53889,6 +53945,8 @@
 			this._showAngles = false;
 			this._showCircle = false;
 			this._showHeight = false;
+			// Xavier: Parametre pour afficher la distance XY
+			this._showWidth = false;
 			this._showEdges = true;
 			this._showAzimuth = false;
 			this.maxMarkers = Number.MAX_SAFE_INTEGER;
@@ -53915,6 +53973,10 @@
 
 			this.heightEdge = createHeightLine();
 			this.heightLabel = createHeightLabel();
+			// Xavier: Créer l'annotation de distance horizontal (xy)
+			this.widthLabel = createWidthLabel();
+			this.widthEdge = createWidthLine();
+
 			this.areaLabel = createAreaLabel();
 			this.circleRadiusLabel = createCircleRadiusLabel();
 			this.circleRadiusLine = createCircleRadiusLine();
@@ -53925,6 +53987,9 @@
 
 			this.add(this.heightEdge);
 			this.add(this.heightLabel);
+			// Xavier: Ajouter l'annotation de distance horizontal (xy)
+			this.add(this.widthEdge);
+			this.add(this.widthLabel);
 			this.add(this.areaLabel);
 			this.add(this.circleRadiusLabel);
 			this.add(this.circleRadiusLine);
@@ -54194,6 +54259,33 @@
 			return distance;
 		}
 
+		// Xavier: Ajouter une fonction pour la longueur total horizontal
+		getTotalHorizDistance () {
+			if (this.points.length === 0) {
+				return 0;
+			}
+
+			let distance = 0;
+
+			for (let i = 1; i < this.points.length; i++) {
+				let prev = this.points[i - 1].position;
+				let curr = this.points[i].position;
+				let d = prev.distanceHorzTo(curr);
+
+				distance += d;
+			}
+
+			if (this.closed && this.points.length > 1) {
+				let first = this.points[0].position;
+				let last = this.points[this.points.length - 1].position;
+				let d = last.distanceHorzTo(first);
+
+				distance += d;
+			}
+
+			return distance;
+		}
+
 		getAngleBetweenLines (cornerPoint, point1, point2) {
 			let v1 = new Vector3().subVectors(point1.position, cornerPoint.position);
 			let v2 = new Vector3().subVectors(point2.position, cornerPoint.position);
@@ -54395,6 +54487,52 @@
 				}
 			}
 
+			// Xavier: Ajouter l'option d'afficher 
+			{ // update h dist stuff
+				let widthEdge = this.widthEdge;
+				widthEdge.visible = this.showWidth;
+				this.widthLabel.visible = this.showWidth;
+
+				if (this.showWidth) {
+					let sorted = this.points.slice().sort((a, b) => a.position.z - b.position.z);
+					let p1 = sorted[0].position.clone();
+					let p2 = sorted[sorted.length - 1].position.clone(); 
+
+					let min = p1.z;
+
+					let start = new Vector3(p1.x, p1.y, min);
+					let end = new Vector3(p2.x, p2.y, min);
+
+					let distance_h = p1.distanceHorzTo(p2)
+
+					widthEdge.position.copy(p1);
+
+					widthEdge.geometry.setPositions([
+						0, 0, 0,
+						...end.clone().sub(p1).toArray(),
+						...end.clone().sub(p1).toArray(),
+						...p2.clone().sub(p1).toArray(),
+					]);
+
+					widthEdge.geometry.verticesNeedUpdate = true;
+					widthEdge.geometry.computeBoundingSphere();
+					widthEdge.computeLineDistances();
+
+					let widthLabelPosition = start.clone().add(end).multiplyScalar(0.5);
+					this.widthLabel.position.copy(widthLabelPosition);
+
+					let suffix = "";
+					if(this.lengthUnit != null && this.lengthUnitDisplay != null){
+						distance_h = distance_h / this.lengthUnit.unitspermeter * this.lengthUnitDisplay.unitspermeter;  //convert to meters then to the display unit
+						suffix = this.lengthUnitDisplay.code;
+					}
+
+					let txtDistanceHoriz = Utils.addCommas(distance_h.toFixed(2));
+					let msg = `${txtDistanceHoriz} ${suffix}`;
+					this.widthLabel.setText(msg);
+				}
+			}
+
 			{ // update circle stuff
 				const circleRadiusLabel = this.circleRadiusLabel;
 				const circleRadiusLine = this.circleRadiusLine;
@@ -54535,9 +54673,19 @@
 		get showHeight () {
 			return this._showHeight;
 		}
+		// Xavier: Méthode pour retourner l'indicateur pour afficher une distance horizontal
+		get showWidth () {
+			return this._showWidth;
+		}
 
 		set showHeight (value) {
 			this._showHeight = value;
+			this.update();
+		}
+
+		// Xavier: Méthode pour définir l'indicateur pour afficher une distance horizontal
+		set showWidth (value) {
+			this._showWidth = value;
 			this.update();
 		}
 
@@ -55477,6 +55625,9 @@
 					return `${Potree.resourcePath}/icons/angle.png`;
 				} else if (measurement.showHeight) {
 					return `${Potree.resourcePath}/icons/height.svg`;
+				// Xavier: Ajouter l'icon de la distance horizontal
+				} else if (measurement.showHeight) {
+					return `${Potree.resourcePath}/icons/width.svg`;
 				} else {
 					return `${Potree.resourcePath}/icons/distance.svg`;
 				}
@@ -64473,6 +64624,8 @@ void main() {
 			showArea: measurement.showArea,
 			closed: measurement.closed,
 			showAngles: measurement.showAngles,
+			// Xavier: Ajouter l'option de la disance horizontal (xy)
+			showWidth: measurement.showWidth,
 			showHeight: measurement.showHeight,
 			showCircle: measurement.showCircle,
 			showAzimuth: measurement.showAzimuth,
@@ -64759,15 +64912,9 @@ void main() {
 
 	// Xavier: Fonction pour determiner un [rtss, chainage, dist] selon une position lat/lon
 	async function resquestChainage(x, y, projection) {
-		// Trouver le fuseau de la projection
-		let fuseau = getFuseauFromEPSG(projection)
-		// Transformer les coordonnées du Nad83(CSRS) vers Nad83(Original)
-		let [new_x, new_y] = await resquestNAD83Transform(x, y, fuseau)
-		// Définir la projection MTM dans le même fuseau, mais en Nad83(Original)
-		let nad83_projection = `EPSG:${32180 + fuseau}`
-		// Définir les systèmes de coordonnées
-		let [longitude, latitude] = proj4(nad83_projection, 'EPSG:4326', [new_x, new_y]);
-
+		// Transformer les coordonnées vers WGS84
+		let [longitude, latitude, new_z] = new ProjTransformer(projection).transform([x, y, 0])
+		// Créer le URL pour appeler L'API SIGO
 		let url = (`https://ws.mapserver.mtq.min.intra/applicatif?\
 				long=${longitude}&\
 				lat=${latitude}&\
@@ -65588,6 +65735,8 @@ void main() {
 		measure.closed = data.closed;
 		measure.showAngles = data.showAngles;
 		measure.showHeight = data.showHeight;
+		// Xavier: Ajouter les distance horizontal (xy)
+		measure.showWidth = data.showWidth;
 		measure.showCircle = data.showCircle;
 		measure.showAzimuth = data.showAzimuth;
 		measure.showEdges = data.showEdges;
@@ -68870,6 +69019,8 @@ void main() {
 			measure.showAngles = pick(args.showAngles, false);
 			measure.showCoordinates = pick(args.showCoordinates, false);
 			measure.showHeight = pick(args.showHeight, false);
+			// Xavier: Ajouter la distance horizontal
+			measure.showWidth = pick(args.showWidth, false);
 			measure.showCircle = pick(args.showCircle, false);
 			measure.showAzimuth = pick(args.showAzimuth, false);
 			measure.showEdges = pick(args.showEdges, true);
@@ -69020,6 +69171,57 @@ void main() {
 						let end = new Vector3(highPoint.x, highPoint.y, max);
 
 						let lowScreen = lowPoint.clone().project(camera);
+						let startScreen = start.clone().project(camera);
+						let endScreen = end.clone().project(camera);
+
+						let toPixelCoordinates = v => {
+							let r = v.clone().addScalar(1).divideScalar(2);
+							r.x = r.x * clientWidth;
+							r.y = r.y * clientHeight;
+							r.z = 0;
+
+							return r;
+						};
+
+						let lowEL = toPixelCoordinates(lowScreen);
+						let startEL = toPixelCoordinates(startScreen);
+						let endEL = toPixelCoordinates(endScreen);
+
+						let lToS = lowEL.distanceTo(startEL);
+						let sToE = startEL.distanceTo(endEL);
+
+						edge.geometry.lineDistances = [0, lToS, lToS, lToS + sToE];
+						edge.geometry.lineDistancesNeedUpdate = true;
+
+						edge.material.dashSize = 10;
+						edge.material.gapSize = 10;
+					}
+				}
+
+				// Xavier: ajouter distance horizontal 
+				// width label
+				if (measure.showWidth) {
+					let label = measure.widthLabel;
+					{
+						let distance = label.position.distanceTo(camera.position);
+						let pr = Utils.projectedRadius(1, camera, distance, clientWidth, clientHeight);
+						let scale = (70 / pr);
+						label.scale.set(scale, scale, scale);
+					}
+
+					{ // width edge
+						let edge = measure.widthEdge;
+
+						let sorted = measure.points.slice().sort((a, b) => a.position.z - b.position.z);
+						let p1 = sorted[0].position.clone();
+						let p2 = sorted[sorted.length - 1].position.clone();
+
+						let min = p1.z;
+
+						let start = new Vector3(p1.x, p1.y, min);
+						let end = new Vector3(p2.x, p2.y, min);
+
+						let lowScreen = p1.clone().project(camera);
 						let startScreen = start.clone().project(camera);
 						let endScreen = end.clone().project(camera);
 
@@ -72113,6 +72315,10 @@ void main() {
 			this.mapProjectionName = 'EPSG:3857';
 			this.mapProjection = proj4.defs(this.mapProjectionName);
 			this.sceneProjection = null;
+			// Xavier: Set la même projection temporaire pour pouvoir afficher la carte même sans nuage
+			this.setSceneProjection('EPSG:3857')
+			// Indicateur de si la projection de la scène est défini
+			this.projection_is_set = false
 
 			this.extentsLayer = null;
 			this.cameraLayer = null;
@@ -72297,80 +72503,45 @@ void main() {
 				visible: false
 			});
 
-			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2025
-			let index_lidar_2025 = new ol.layer.Image({
-				source: new ol.source.ImageWMS({
-					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
-					params:{
-						'LAYERS': 'lidar_mobile_trace_lineaire_routier2025',
-						'VERSION': '1.3.0',
-						'FORMAT': 'image/png',
-						'TRANSPARENT': true,
-						'CRS': 'EPSG:3857'
-					},
-					serverType: 'mapserver', 
-					crossOrigin: 'anonymous'}),
-				visible: false
+			// URL the base pour la couche d'index lidar
+			this.base_url_lidar_index = 'https://ws.mapserver.mtq.min.intra/imagerie?service=WFS&version=1.1.0&request=GetFeature&typename=ms:lidar_mobile_trace_lineaire_routier&srsname=EPSG:3857';
+			let base_filter = '<ogc:Filter><ogc:PropertyIsEqualTo><ogc:PropertyName>fichier1</ogc:PropertyName><ogc:Literal>rien</ogc:Literal></ogc:PropertyIsEqualTo></ogc:Filter>'
+			this.list_index_name = []
+			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile
+			const layer_lidar_source = new ol.source.Vector({
+				format: new ol.format.WFS(),
+				url:this.base_url_lidar_index + '&FILTER=' + encodeURIComponent(base_filter)
 			});
-
-			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2024
-			let index_lidar_2024 = new ol.layer.Image({
-				source: new ol.source.ImageWMS({
-					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
-					params:{
-						'LAYERS': 'lidar_mobile_trace_lineaire_routier2024',
-						'VERSION': '1.3.0',
-						'FORMAT': 'image/png',
-						'TRANSPARENT': true,
-						'CRS': 'EPSG:3857'
-					},
-					serverType: 'mapserver', 
-					crossOrigin: 'anonymous'}),
-				visible: false
+			
+			this.index_lidar_actif = new ol.layer.Vector({
+				source: layer_lidar_source,
+				style: new ol.style.Style({
+					stroke: new ol.style.Stroke({
+						color: 'rgba(0,0,255,0.2)',
+						width: 30,
+						lineCap: 'butt'
+					}),
+					fill: new ol.style.Fill({
+					color: 'rgba(0,0,255,0.1)'
+					})
+				})
 			});
-
-			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2023
-			let index_lidar_2023 = new ol.layer.Image({
+			
+			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile (2025 par défault)
+			this.current_year = 2025
+			// Liste des années possible déjà connu ayant du lidar
+			this.list_of_annee_lidar = [2025, 2024, 2023, 2022, 2021]
+			// Créer la couche par défault avec l'année courante
+			this.index_lidar_telechargement = new ol.layer.Image({
 				source: new ol.source.ImageWMS({
 					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
 					params:{
-						'LAYERS': 'lidar_mobile_trace_lineaire_routier2023',
+						'LAYERS': 'lidar_mobile_trace_lineaire_routier',
 						'VERSION': '1.3.0',
 						'FORMAT': 'image/png',
 						'TRANSPARENT': true,
-						'CRS': 'EPSG:3857'
-					},
-					serverType: 'mapserver', 
-					crossOrigin: 'anonymous'}),
-				visible: false
-			});
-
-			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2022
-			let index_lidar_2022 = new ol.layer.Image({
-				source: new ol.source.ImageWMS({
-					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
-					params:{
-						'LAYERS': 'lidar_mobile_trace_lineaire_routier2022',
-						'VERSION': '1.3.0',
-						'FORMAT': 'image/png',
-						'TRANSPARENT': true,
-						'CRS': 'EPSG:3857'
-					},
-					serverType: 'mapserver', 
-					crossOrigin: 'anonymous'}),
-				visible: false
-			});
-
-			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile 2021
-			let index_lidar_2021 = new ol.layer.Image({
-				source: new ol.source.ImageWMS({
-					url: 'https://ws.mapserver.mtq.min.intra/imagerie',
-					params:{
-						'LAYERS': 'lidar_mobile_trace_lineaire_routier2021',
-						'VERSION': '1.3.0',
-						'FORMAT': 'image/png',
-						'TRANSPARENT': true,
-						'CRS': 'EPSG:3857'
+						'CRS': 'EPSG:3857',
+						'FILTER': `(<Filter xmlns="http://www.opengis.net/ogc"><PropertyIsEqualTo matchCase="true"><PropertyName>annee</PropertyName><Literal>${this.current_year}</Literal></PropertyIsEqualTo></Filter>)`
 					},
 					serverType: 'mapserver', 
 					crossOrigin: 'anonymous'}),
@@ -72401,12 +72572,19 @@ void main() {
 				button.innerHTML = 'D';
 				link.appendChild(button);
 
+				// Xavier: couleur des boutons actif ou inactif
+				_this.disabled_color = 'rgba(153, 171, 197, 0.7)'
+				let active_color = 'rgba(5, 47, 103, 0.7)'
+
 				// Xavier TOGGLE Imagerie aérienne
 				let btToggleImage = document.createElement('button');
 				btToggleImage.innerHTML = 'I';
 				btToggleImage.addEventListener('click', () => {
 					imagerie_aerienne.setVisible(!imagerie_aerienne.getVisible());
 					fond_MTMD.setVisible(!fond_MTMD.getVisible());
+					// Changer le style du bouton
+					if (imagerie_aerienne.getVisible()) {btToggleImage.style.backgroundColor = active_color}
+					else {btToggleImage.style.backgroundColor = ''}
 				}, false);
 				btToggleImage.style.float = 'left';
 				btToggleImage.title = 'Afficher / masquer les images aériennes';
@@ -72416,84 +72594,65 @@ void main() {
 				btToggleChainage.innerHTML = 'C';
 				btToggleChainage.addEventListener('click', () => {
 					chainage_MTMD.setVisible(!chainage_MTMD.getVisible());
+					// Changer le style du bouton
+					if (chainage_MTMD.getVisible()) {btToggleChainage.style.backgroundColor = active_color}
+					else {btToggleChainage.style.backgroundColor = ''}
 				}, false);
 				btToggleChainage.style.float = 'left';
 				btToggleChainage.title = 'Afficher / masquer le chaînage';
 
-				// Xavier TOGGLE Télécharment LIDAR 2025
-				let btToggleLidar2025 = document.createElement('button');
-				btToggleLidar2025.innerHTML = '2025';
-				btToggleLidar2025.addEventListener('click', () => {
-					index_lidar_2025.setVisible(!index_lidar_2025.getVisible());
-					// Désactiver les autres couches
-					index_lidar_2021.setVisible(false);
-					index_lidar_2023.setVisible(false);
-					index_lidar_2022.setVisible(false);
-					index_lidar_2024.setVisible(false);
+				// Xavier Bouton pour TOGGLE la couche de Télécharment LIDAR pour l'année selectionnée
+				_this.btToggleLidarAnnee = document.createElement('button');
+				_this.btToggleLidarAnnee.innerHTML = `${_this.current_year}`;
+				// On click afficher ou pas la couche pour l'année active
+				_this.btToggleLidarAnnee.addEventListener('click', () => {
+					// Définir la visibilité de la couche
+					_this.index_lidar_telechargement.setVisible(!_this.index_lidar_telechargement.getVisible());
+					// Changer le style du bouton
+					if (_this.index_lidar_telechargement.getVisible()) {_this.btToggleLidarAnnee.style.backgroundColor = active_color}
+					else {_this.btToggleLidarAnnee.style.backgroundColor = ''}
 				}, false);
-				btToggleLidar2025.style.float = 'left';
-				btToggleLidar2025.title = 'Téléchargement des données LiDAR Mobile 2025';
-				btToggleLidar2025.style.width = '3em';
+				// Définir des propriété du bouton
+				_this.btToggleLidarAnnee.style.float = 'left';
+				_this.btToggleLidarAnnee.title = `Téléchargement des données LiDAR Mobile ${_this.current_year}`;
+				_this.btToggleLidarAnnee.style.width = '3em';
 
-				// Xavier TOGGLE Télécharment LIDAR 2024
-				let btToggleLidar2024 = document.createElement('button');
-				btToggleLidar2024.innerHTML = '2024';
-				btToggleLidar2024.addEventListener('click', () => {
-					index_lidar_2024.setVisible(!index_lidar_2024.getVisible());
-					// Désactiver les autres couches
-					index_lidar_2021.setVisible(false);
-					index_lidar_2023.setVisible(false);
-					index_lidar_2022.setVisible(false);
+				// Xavier: 
+				// ============================== Decsendre les Année ==============================
+				_this.btToggleLidarAnneeGauche = document.createElement('button');
+				_this.btToggleLidarAnneeGauche.innerHTML = '<';
+				_this.btToggleLidarAnneeGauche.addEventListener('click', () => {
+					// Définir la nouvelle année
+					_this.updateCurrentYearLidar(parseInt(_this.btToggleLidarAnnee.innerHTML) - 1)
 				}, false);
-				btToggleLidar2024.style.float = 'left';
-				btToggleLidar2024.title = 'Téléchargement des données LiDAR Mobile 2024';
-				btToggleLidar2024.style.width = '3em';
+				// Définir des propriété pour la flèche
+				_this.btToggleLidarAnneeGauche.style.float = 'left';
+				_this.btToggleLidarAnneeGauche.disabled = ! _this.list_of_annee_lidar.includes(_this.current_year - 1)
+				_this.btToggleLidarAnneeGauche.style.width = '1em';
+				_this.btToggleLidarAnneeGauche.style.marginLeft = '5px'
+				if (_this.btToggleLidarAnneeGauche.disabled) {_this.btToggleLidarAnneeGauche.style.backgroundColor = _this.disabled_color
+				} else {_this.btToggleLidarAnneeGauche.style.backgroundColor = ''}
 
-				// Xavier TOGGLE Télécharment LIDAR 2023
-				let btToggleLidar2023 = document.createElement('button');
-				btToggleLidar2023.innerHTML = '2023';
-				btToggleLidar2023.addEventListener('click', () => {
-					index_lidar_2023.setVisible(!index_lidar_2023.getVisible());
-					// Désactiver les autres couches
-					index_lidar_2025.setVisible(false);
-					index_lidar_2024.setVisible(false);
-					index_lidar_2021.setVisible(false);
-					index_lidar_2022.setVisible(false);
+				// Xavier: 
+				// ============================== Monter les Année ==============================
+				_this.btToggleLidarAnneeDroite = document.createElement('button');
+				_this.btToggleLidarAnneeDroite.innerHTML = '>';
+				_this.btToggleLidarAnneeDroite.addEventListener('click', () => {
+					// Définir la nouvelle année
+					_this.updateCurrentYearLidar(parseInt(_this.btToggleLidarAnnee.innerHTML) + 1)
 				}, false);
-				btToggleLidar2023.style.float = 'left';
-				btToggleLidar2023.title = 'Téléchargement des données LiDAR Mobile 2023';
-				btToggleLidar2023.style.width = '3em';
+				// Définir des propriété pour la flèche
+				_this.btToggleLidarAnneeDroite.style.float = 'left';
+				_this.btToggleLidarAnneeDroite.disabled = ! _this.list_of_annee_lidar.includes(_this.current_year + 1)
+				_this.btToggleLidarAnneeDroite.style.width = '1em';
+				if (_this.btToggleLidarAnneeDroite.disabled) {_this.btToggleLidarAnneeDroite.style.backgroundColor = _this.disabled_color
+				} else {_this.btToggleLidarAnneeDroite.style.backgroundColor = ''}
 
-				// Xavier TOGGLE Télécharment LIDAR 2022
-				let btToggleLidar2022 = document.createElement('button');
-				btToggleLidar2022.innerHTML = '2022';
-				btToggleLidar2022.addEventListener('click', () => {
-					index_lidar_2022.setVisible(!index_lidar_2022.getVisible());
-					// Désactiver les autres couches
-					index_lidar_2025.setVisible(false);
-					index_lidar_2024.setVisible(false);
-					index_lidar_2023.setVisible(false);
-					index_lidar_2021.setVisible(false);
-				}, false);
-				btToggleLidar2022.style.float = 'left';
-				btToggleLidar2022.title = 'Téléchargement des données LiDAR Mobile 2022';
-				btToggleLidar2022.style.width = '3em';
-
-				// Xavier TOGGLE Télécharment LIDAR 2021
-				let btToggleLidar2021 = document.createElement('button');
-				btToggleLidar2021.innerHTML = '2021';
-				btToggleLidar2021.addEventListener('click', () => {
-					index_lidar_2021.setVisible(!index_lidar_2021.getVisible());
-					// Désactiver les autres couches
-					index_lidar_2024.setVisible(false);
-					index_lidar_2025.setVisible(false);
-					index_lidar_2023.setVisible(false);
-					index_lidar_2022.setVisible(false);
-
-				}, false);
-				btToggleLidar2021.style.float = 'left';
-				btToggleLidar2021.title = 'Téléchargement des données LiDAR Mobile 2021';
-				btToggleLidar2021.style.width = '3em';
+				// Xaiver: Mettte la liste des années possible avec du lidar à jour selon la couche
+				_this.getAnneeLidar(_this.list_of_annee_lidar).then(result => {
+					_this.list_of_annee_lidar = result
+					_this.updateCurrentYearLidar(_this.current_year)
+				});
 
 				let handleDownload = (e) => {
 					let features = selectedFeatures.getArray();
@@ -72544,11 +72703,9 @@ void main() {
 				// Xavier Ajouter le bouton pour activer et desactiver la couche de chaînage
 				element.appendChild(btToggleChainage);
 				// Xavier Ajouter le bouton pour activer et desactiver les couches de téléchargement LIDAR Mobile
-				element.appendChild(btToggleLidar2025);
-				element.appendChild(btToggleLidar2024);
-				element.appendChild(btToggleLidar2023);
-				element.appendChild(btToggleLidar2022);
-				element.appendChild(btToggleLidar2021);
+				element.appendChild(_this.btToggleLidarAnneeGauche);
+				element.appendChild(_this.btToggleLidarAnnee);
+				element.appendChild(_this.btToggleLidarAnneeDroite);
 				element.style.bottom = '0.5em';
 				element.style.left = '0.5em';
 				element.title = 'Download file or list of selected tiles. Select tile with left mouse button or area using ctrl + left mouse.';
@@ -72574,11 +72731,8 @@ void main() {
 					// Xavier: Ajouter les couches à la carte
 					imagerie_aerienne,
 					fond_MTMD,
-					index_lidar_2025,
-					index_lidar_2024,
-					index_lidar_2023,
-					index_lidar_2022,
-					index_lidar_2021,
+					this.index_lidar_actif,
+					this.index_lidar_telechargement,
 					chainage_MTMD,
 					//new ol.layer.Tile({source: new ol.source.OSM()}),
 					this.toolLayer,
@@ -72591,8 +72745,9 @@ void main() {
 				],
 				target: 'potree_map_content',
 				view: new ol.View({
-					center: this.olCenter,
-					zoom: 9
+					// Xavier: Placer le centre manuellement pour le Québec plutôt que this.olCenter
+					center: [-8069835.088, 5831910.266],
+					zoom: 7
 				})
 			});
 
@@ -72637,33 +72792,14 @@ void main() {
 
 			// Xavier: Ajouter le click pour le téléchargement des données LIDAR Mobile
 			this.map.on('singleclick', (evt) => {
-    			let layerName = null
 				// Vérifier quelle année d'index est active
-				if (index_lidar_2025.getVisible() === true){
-					layerName = 'lidar_mobile_trace_lineaire_routier2025'
+				if (this.index_lidar_telechargement.getVisible() === true){
+					// Interroger le WMS pour obtenir l'URL du fichier LAZ
+					this.queryWMSFeatures(evt.pixel).then(result => {
+						// Download le fichier LAZ et ajouter le au viewer
+						downloadAndAddLazFile(result[0], this.viewer)
+					});
 				}
-				if (index_lidar_2024.getVisible() === true){
-					layerName = 'lidar_mobile_trace_lineaire_routier2024'
-				}
-				else if (index_lidar_2023.getVisible() === true){
-					layerName = 'lidar_mobile_trace_lineaire_routier2023'
-				}
-				else if (index_lidar_2022.getVisible() === true){
-					layerName = 'lidar_mobile_trace_lineaire_routier2022'
-				}
-				else if (index_lidar_2021.getVisible() === true){
-					layerName = 'lidar_mobile_trace_lineaire_routier2021'
-				}
-				// Si aucune couche n'est active, ne rien faire
-				if (layerName === null){
-					return;
-				}
-				// Interroger le WMS pour obtenir l'URL du fichier LAZ
-				this.queryWMSFeatures(evt.pixel, layerName).then(result => {
-					// Download le fichier LAZ et ajouter le au viewer
-					downloadAndAddLazFile(result[0], this.viewer)
-				});
-				
 			});
 
 			this.map.on('click', evt => {
@@ -72741,6 +72877,107 @@ void main() {
 			this.setScene(this.viewer.scene);
 		}
 
+		// Xavier: Update active laz index layer
+		updateLazIndex(laz_metadata){
+			// Xavier: lire le nom du .laz original télécharger
+			const fs = require('fs');
+			const data = JSON.parse(fs.readFileSync(laz_metadata, 'utf-8'));
+			const laz_name = `${data.name}.laz`
+			// Vérifier si le fichier est déjà dans le projet
+			if (!this.list_index_name.includes(laz_name)) {
+				// Mettre à jour le filter dans la couche d'index actif
+				this.list_index_name.push(laz_name)
+			}
+
+			let filterXML = null
+			if (this.list_index_name.length > 1) {
+				filterXML = `
+				<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc">
+				<ogc:Or>
+					${this.list_index_name.map(v => `
+					<ogc:PropertyIsEqualTo>
+						<ogc:PropertyName>fichier1</ogc:PropertyName>
+						<ogc:Literal>${v}</ogc:Literal>
+					</ogc:PropertyIsEqualTo>
+					`).join('')}
+				</ogc:Or>
+				</ogc:Filter>`;
+			} else {
+				filterXML = `
+				<ogc:Filter>
+				<ogc:PropertyIsEqualTo>
+					<ogc:PropertyName>fichier1</ogc:PropertyName>
+					<ogc:Literal>${this.list_index_name[0]}</ogc:Literal>
+				</ogc:PropertyIsEqualTo>
+				</ogc:Filter>`;
+			}
+			const filter_encoder = encodeURIComponent(filterXML)
+			
+			const new_source = new ol.source.Vector({
+				format: new ol.format.WFS(),
+				url:this.base_url_lidar_index + '&FILTER=' + filter_encoder
+			});
+
+			this.index_lidar_actif.setSource(new_source)
+		}
+
+		// Xavier: Update l'année active du téléchargement de lidar
+		updateCurrentYearLidar(year){
+			this.current_year = year
+			// Désactiver ou Activer les fleche selon la liste des années disponible
+			this.btToggleLidarAnneeGauche.disabled = ! this.list_of_annee_lidar.includes(year - 1)
+			this.btToggleLidarAnneeDroite.disabled = ! this.list_of_annee_lidar.includes(year + 1)
+			// Mettre à jour le filtre de la couche d'index lidar
+			const wmsSource = this.index_lidar_telechargement.getSource();
+			wmsSource.updateParams({
+				FILTER: `(<Filter xmlns="http://www.opengis.net/ogc"><PropertyIsEqualTo matchCase="true"><PropertyName>annee</PropertyName><Literal>${year}</Literal></PropertyIsEqualTo></Filter>)`
+			});
+			// Changer les styles de bouton de fleche
+			if (this.btToggleLidarAnneeGauche.disabled) {this.btToggleLidarAnneeGauche.style.backgroundColor = this.disabled_color
+			} else {this.btToggleLidarAnneeGauche.style.backgroundColor = ''}
+			if (this.btToggleLidarAnneeDroite.disabled) {this.btToggleLidarAnneeDroite.style.backgroundColor = this.disabled_color
+			} else {this.btToggleLidarAnneeDroite.style.backgroundColor = ''}
+			// Update les informations du bouton pour refléter la bonne années
+			this.btToggleLidarAnnee.innerHTML = year
+			this.btToggleLidarAnnee.title = `Téléchargement des données LiDAR Mobile ${year}`;
+		}
+
+		// Xavier: Permet de retourner la liste des années avec du lidar disponnible
+		async getAnneeLidar(list_annee_default) {
+			// URL pour avoir le nombre de feature de la couche
+			const base_url_lidar_index = 'https://ws.mapserver.mtq.min.intra/imagerie?service=WFS&version=1.1.0&request=GetFeature&typename=ms:lidar_mobile_trace_lineaire_routier&srsname=EPSG:3857&resultType=hits';
+
+			const minYear = Math.max(...list_annee_default);
+			const currentYear = new Date().getFullYear();
+			const promises = [];
+			// Parcourir toute les années manquante possible entre cette année et la plus récente de la liste
+			for (let year = minYear; year <= currentYear; year++) {
+				// Assurer que l'année n'est pas déjà dans la liste
+				if (!list_annee_default.includes(year)) {
+					// Construire le filtre pour conserver seulment l'année à vérifier
+					const base_filter = `<ogc:Filter><ogc:PropertyIsEqualTo><ogc:PropertyName>annee</ogc:PropertyName><ogc:Literal>${year}</ogc:Literal></ogc:PropertyIsEqualTo></ogc:Filter>`;
+					const url = base_url_lidar_index + '&FILTER=' + encodeURIComponent(base_filter);
+					// Envoyer la requete 
+					const promise = fetch(url)
+					.then(res => res.text())
+					.then(txt => {
+						const match = txt.match(/numberOfFeatures="(\d+)"/);
+						if (match) {
+							const value = parseInt(match[1]);
+							if (value > 0) {	
+								list_annee_default.push(year);
+							}
+						}
+					});
+					promises.push(promise);
+				}
+			}
+			// Attendre d'avoir recu toutes les réponses
+			await Promise.all(promises);
+			// Retrouner la nouvelle liste avec toute les années
+			return list_annee_default;
+		}
+
 		setScene (scene) {
 			if (this.scene === scene) {
 				return;
@@ -72791,7 +73028,8 @@ void main() {
 					}),
 					stroke: new ol.style.Stroke({
 						color: '#0000ff',
-						width: 2
+						width: 1.5,
+						lineDash: [1, 6] // dotted effect
 					}),
 					image: new ol.style.Circle({
 						radius: 3,
@@ -72951,6 +73189,7 @@ void main() {
 			this.sceneProjection = sceneProjection;
 			this.toMap = proj4(this.sceneProjection, this.mapProjection);
 			this.toScene = proj4(this.mapProjection, this.sceneProjection);
+			this.projection_is_set = true
 		};
 
 		getMapExtent () {
@@ -73050,8 +73289,8 @@ void main() {
 			if (!pointcloud.projection) {
 				return;
 			}
-
-			if (!this.sceneProjection) {
+			// Xavier: Vérifier si la projection de la scene a été défini
+			if (!this.projection_is_set) {
 				try {
 					this.setSceneProjection(pointcloud.projection);
 				}catch (e) {
@@ -73070,7 +73309,7 @@ void main() {
 						return;
 					};
 				}
-			}
+			}		
 
 			let mapExtent = this.getMapExtent();
 			let mapCenter = this.getMapCenter();
@@ -73094,12 +73333,14 @@ void main() {
 				return;
 			}
 
+			// Xavier: Update l'étendu de l'index des nuages de point de la carte
+			this.updateLazIndex(`${pointcloud.pcoGeometry.url}/../metadata.json`)
+
 			let url = `${pointcloud.pcoGeometry.url}/../sources.json`;
 			//let response = await fetch(url);
 
 			fetch(url).then(async (response) => {
 				let data = await response.json();
-			
 				let sources = data.sources;
 
 				for (let i = 0; i < sources.length; i++) {
@@ -73171,7 +73412,10 @@ void main() {
 			if (resized) {
 				this.map.updateSize();
 			}
-
+			// Skip les updates si la projection de la scene n'est pas défini
+			if (!this.projection_is_set) {
+				return;
+			}
 			//
 			let camera = this.viewer.scene.getActiveCamera();
 
@@ -73203,6 +73447,7 @@ void main() {
 		set sourcesVisible (value) {
 			this.getSourcesLayer().setVisible(value);
 		}
+		
 		// Xavier
 		displayFeatureAttributes(links, coordinate) {	
 			// Supprimer les popups existants
@@ -73291,7 +73536,7 @@ void main() {
 		}
 
 		// Xavier: Fonction pour interroger les WMS et obtenir les informations
-		queryWMSFeatures (pixel, layerName) {
+		queryWMSFeatures (pixel) {
 			// Récupérer les paramètres de votre couche WMS
 			const wmsUrl = 'https://ws.mapserver.mtq.min.intra/imagerie';
 			// Obtenir la vue et les dimensions de la carte
@@ -73302,8 +73547,9 @@ void main() {
 				SERVICE: 'WMS',
 				VERSION: '1.3.0',
 				REQUEST: 'GetFeatureInfo',
-				LAYERS: layerName,
-				QUERY_LAYERS:layerName,
+				LAYERS: 'lidar_mobile_trace_lineaire_routier',
+				QUERY_LAYERS:'lidar_mobile_trace_lineaire_routier',
+				FILTER: `(<Filter xmlns="http://www.opengis.net/ogc"><PropertyIsEqualTo matchCase="true"><PropertyName>annee</PropertyName><Literal>${this.current_year}</Literal></PropertyIsEqualTo></Filter>)`,
 				STYLES: '',
 				BBOX: extent.join(','),
 				FEATURE_COUNT: 30,
@@ -73339,7 +73585,7 @@ void main() {
 				return response.text();
 			})
 			.then(gmlText => {
-				const links = parseGMLResponse(gmlText, `${layerName}_feature`); 
+				const links = parseGMLResponse(gmlText, 'lidar_mobile_trace_lineaire_routier_feature'); 
 				return links;
 			})
 			.catch(error => {
@@ -74988,6 +75234,57 @@ ENDSEC
 			return features;
 		}
 
+		// Xavier: Ajouter une méthode pour la
+		// Même function que "measurementToFeatures", mais en faisant une reprojection
+		static measurementToFeaturesWithProjection (measurement, transformer) {
+			let coords = measurement.points.map(e =>
+				transformer.transform(e.position.toArray())
+			);
+
+			let features = [];
+
+			if (coords.length === 1) {
+				let feature = {
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: coords[0]
+					},
+					properties: {
+						name: measurement.name
+					}
+				};
+				features.push(feature);
+			} else if (coords.length > 1 && !measurement.closed) {
+				let object = {
+					'type': 'Feature',
+					'geometry': {
+						'type': 'LineString',
+						'coordinates': coords
+					},
+					'properties': {
+						name: measurement.name
+					}
+				};
+
+				features.push(object);
+			} else if (coords.length > 1 && measurement.closed) {
+				let object = {
+					'type': 'Feature',
+					'geometry': {
+						'type': 'Polygon',
+						'coordinates': [[...coords, coords[0]]]
+					},
+					'properties': {
+						name: measurement.name
+					}
+				};
+				features.push(object);
+			}
+
+			return features;
+		}
+
 		static toString (measurements) {
 			if (!(measurements instanceof Array)) {
 				measurements = [measurements];
@@ -75010,7 +75307,110 @@ ENDSEC
 			return JSON.stringify(geojson, null, '\t');
 		}
 
-	}
+		// Xavier: Ajouter une méthode pour la
+		// Même function que "toString", mais en appellant la méthode measurementToFeaturesWithProjection
+		static toStringWithProjection (measurements, transformer) {
+			if (!(measurements instanceof Array)) {
+				measurements = [measurements];
+			}
+
+			measurements = measurements.filter(m => m instanceof Measure);
+
+			let features = [];
+			for (let measure of measurements) {
+				let f = GeoJSONExporter.measurementToFeaturesWithProjection(measure, transformer);
+
+				features = features.concat(f);
+			}
+
+			let geojson = {
+				'type': 'FeatureCollection',
+				'features': features,
+				'crs': {
+					type: "name",
+					properties: {name: transformer.to_crs}
+				}
+			};
+
+			return JSON.stringify(geojson, null, '\t');
+		}
+
+		// Xavier: Ajouter une méthode pour exporter le geojson
+		static download(measurements, filename="measurement.geojson") {
+			// Créer le transformer
+			const transformer = new ProjTransformer(measurements.proj, "EPSG:3798");
+			
+			// Generate GeoJSON string
+			const geojsonString = GeoJSONExporter.toStringWithProjection(measurements, transformer);
+			// Create a Blob
+			const blob = new Blob([geojsonString], {type: "application/geo+json"});
+			// Create a temporary URL
+			const url = URL.createObjectURL(blob);
+
+			// Create a temporary link
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = filename;
+
+			// Append, click, and clean up
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+
+			// Release memory
+			URL.revokeObjectURL(url);
+		}
+	};
+
+	// Xavier: Creer un objet pour la transformation de coordonnée avec le pipeline de PROJ 
+	class ProjTransformer {
+		
+		constructor(origin_crs, destination_crs="EPSG:4326") {
+			const path = require('path')
+			// Chemin du pipeline de PROJ
+			this.cs2csPath = path.join(path.join(__dirname, "libs/proj"), "bin/cs2cs.exe");
+			this.lib_path = path.join(path.join(__dirname, "libs/proj"), "share/proj")
+			// Définir les CRS origine et destination
+			this.from_crs = origin_crs
+			this.to_crs = destination_crs
+		}
+		
+		transform(coord) {
+			// Permet de faire la transformation d'une coordonnées
+			const { execFileSync } = require("child_process");
+			// Verifier que les coordonnées en entrée sont valide
+			if (!coord || coord.length < 2) {
+				throw new Error("Invalid coordinate");
+			}
+			// Créer la chaine text de l'input des coordonées de la commande
+			const input = `${parseFloat(coord[0])} ${parseFloat(coord[1])} ${parseFloat(coord[2] ?? 0)}`;
+			// Exécuter la commande
+			const result = execFileSync(
+				this.cs2csPath,
+				["-f", "%.12f", this.from_crs, this.to_crs],
+				{input, encoding: "utf8", stdio: "pipe"}
+			);
+			// PROJ output is: "lat long z"
+			const parts = result.trim().split(/\s+/);
+			// Retourner les coordonées transformer dans une liste X,Y,Z
+			if (this.isGeographic(this.to_crs)) {
+				return [parseFloat(parts[1]), parseFloat(parts[0]), parseFloat(parts[2] ?? 0)];
+			} else {
+				return [parseFloat(parts[0]), parseFloat(parts[1]), parseFloat(parts[2] ?? 0)];
+			}
+		}
+
+		isGeographic(crs) {
+		// Permet de vérifier si le CRS est geographique ou non
+			const { execFileSync } = require("child_process");
+			const result = execFileSync(
+				"projinfo",
+				[crs],
+				{ encoding: "utf8" }
+			);
+			return result.includes("CS[ellipsoidal");
+		}
+	};
 
 	/**
 	 *
@@ -75293,6 +75693,7 @@ ENDSEC
 			super(viewer, measurement, propertiesPanel);
 
 			let removeIconPath = Potree.resourcePath + '/icons/remove.svg';
+			// Xavier: Ajouter un bouton pour enregistrer en GeoJSON la mesure
 			this.elContent = $(`
 			<div class="measurement_content selectable">
 				<span class="coordinates_table_container"></span>
@@ -75303,6 +75704,8 @@ ENDSEC
 				<div style="display: flex; margin-top: 12px">
 					<span>
 						<input type="button" name="make_profile" value="profile from measure" />
+						<br>
+						<input type="button" name="make_geojson" value="Exporter la mesure en GeoJSON" />
 					</span>
 					<span style="flex-grow: 1"></span>
 					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
@@ -75330,6 +75733,15 @@ ENDSEC
 				this.viewer.scene.addProfile(profile);
 
 			});
+			
+			// Xavier: Connecter la création du Geojson
+			this.elExportGeoJSON = this.elContent.find("input[name=make_geojson]");
+			this.elExportGeoJSON.click( () => {
+				// Nom du fichier par défault
+				let name = String(measurement.name) + ".geojson";
+				// Exporter le GeoJSON de la mesure
+				GeoJSONExporter.download(measurement, name);
+			});
 
 			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
 			this.propertiesPanel.addVolatileListener(measurement, "marker_removed", this._update);
@@ -75345,29 +75757,40 @@ ENDSEC
 
 			let positions = this.measurement.points.map(p => p.position);
 			let distances = [];
+			// Xavier: Ajouter des distances horizontal
+			let distances_horz = []
 			for (let i = 0; i < positions.length - 1; i++) {
 				let d = positions[i].distanceTo(positions[i + 1]);
 				distances.push(d.toFixed(3));
+
+				// Remplir la liste de distance horizontal
+				let dh = positions[i].distanceHorzTo(positions[i + 1]);
+				distances_horz.push(dh.toFixed(3));
 			}
 
 			let totalDistance = this.measurement.getTotalDistance().toFixed(3);
+			// Ajouter le total de la distance horizontal
+			let totalHorizDistance = this.measurement.getTotalHorizDistance().toFixed(3);
 			let elDistanceTable = this.elContent.find(`#distances_table`);
 			elDistanceTable.empty();
-
+			elDistanceTable.append("<tr><th></th><th>xyz</th><th>xy</th></tr>")
 			for (let i = 0; i < distances.length; i++) {
 				let label = (i === 0) ? 'Distances: ' : '';
 				let distance = distances[i];
+				let distance_horz = distances_horz[i];
 				let elDistance = $(`
 				<tr>
 					<th>${label}</th>
-					<td style="width: 100%; padding-left: 10px">${distance}</td>
+					<td style="width: 50%; padding-left: 10px">${distance}</td>
+					<td style="width: 50%; padding-left: 10px">${distance_horz}</td>
 				</tr>`);
 				elDistanceTable.append(elDistance);
 			}
-
+			// Ajouter la distance horizontal total
 			let elTotal = $(`
 			<tr>
-				<th>Total: </td><td style="width: 100%; padding-left: 10px">${totalDistance}</th>
+				<th>Total: </th><td style="width: 50%; padding-left: 10px">${totalDistance}</td>
+				<td style="width: 50%; padding-left: 10px">${totalHorizDistance}</td>
 			</tr>`);
 			elDistanceTable.append(elTotal);
 		}
@@ -75378,6 +75801,7 @@ ENDSEC
 			super(viewer, measurement, propertiesPanel);
 
 			let removeIconPath = Potree.resourcePath + '/icons/remove.svg';
+			// Xavier: Ajouter un bouton pour enregistrer en GeoJSON la mesure
 			this.elContent = $(`
 			<div class="measurement_content selectable">
 				<span class="coordinates_table_container"></span>
@@ -75386,7 +75810,9 @@ ENDSEC
 
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
-					<span></span>
+					<span>
+						<input type="button" name="make_geojson" value="Exporter la mesure en GeoJSON" />
+					</span>
 					<span style="flex-grow: 1"></span>
 					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
 				</div>
@@ -75396,6 +75822,15 @@ ENDSEC
 			this.elRemove = this.elContent.find("img[name=remove]");
 			this.elRemove.click( () => {
 				this.viewer.scene.removeMeasurement(measurement);
+			});
+
+			// Xavier: Connecter la création du Geojson
+			this.elExportGeoJSON = this.elContent.find("input[name=make_geojson]");
+			this.elExportGeoJSON.click( () => {
+				// Nom du fichier par défault
+				let name = String(measurement.name) + ".geojson";
+				// Exporter le GeoJSON de la mesure
+				GeoJSONExporter.download(measurement, name);
 			});
 
 			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
@@ -75429,7 +75864,9 @@ ENDSEC
 
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
-					<span></span>
+					<span>
+						<input type="button" name="make_geojson" value="Exporter la mesure en GeoJSON" />
+					</span>
 					<span style="flex-grow: 1"></span>
 					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
 				</div>
@@ -75439,6 +75876,15 @@ ENDSEC
 			this.elRemove = this.elContent.find("img[name=remove]");
 			this.elRemove.click( () => {
 				this.viewer.scene.removeMeasurement(measurement);
+			});
+
+			// Xavier: Connecter la création du Geojson
+			this.elExportGeoJSON = this.elContent.find("input[name=make_geojson]");
+			this.elExportGeoJSON.click( () => {
+				// Nom du fichier par défault
+				let name = String(measurement.name) + ".geojson";
+				// Exporter le GeoJSON de la mesure
+				GeoJSONExporter.download(measurement, name);
 			});
 
 			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
@@ -75575,6 +76021,7 @@ ENDSEC
 			super(viewer, measurement, propertiesPanel);
 
 			let removeIconPath = Potree.resourcePath + '/icons/remove.svg';
+			// Xavier: Ajouter un bouton pour enregistrer en GeoJSON la mesure
 			this.elContent = $(`
 			<div class="measurement_content selectable">
 				<span class="coordinates_table_container"></span>
@@ -75584,7 +76031,9 @@ ENDSEC
 
 				<!-- ACTIONS -->
 				<div style="display: flex; margin-top: 12px">
-					<span></span>
+					<span>
+						<input type="button" name="make_geojson" value="Exporter la mesure en GeoJSON" />
+					</span>
 					<span style="flex-grow: 1"></span>
 					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
 				</div>
@@ -75594,6 +76043,15 @@ ENDSEC
 			this.elRemove = this.elContent.find("img[name=remove]");
 			this.elRemove.click( () => {
 				this.viewer.scene.removeMeasurement(measurement);
+			});
+
+			// Xavier: Connecter la création du Geojson
+			this.elExportGeoJSON = this.elContent.find("input[name=make_geojson]");
+			this.elExportGeoJSON.click( () => {
+				// Nom du fichier par défault
+				let name = String(measurement.name) + ".geojson";
+				// Exporter le GeoJSON de la mesure
+				GeoJSONExporter.download(measurement, name);
 			});
 
 			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
@@ -77748,6 +78206,8 @@ ENDSEC
 				POINT: {panel: PointPanel},
 				ANGLE: {panel: AnglePanel},
 				HEIGHT: {panel: HeightPanel},
+				// Xavier: Add disatance horizontal
+				DISTANCE_HORIZ: {panel: DistancePanel},
 				PROFILE: {panel: ProfilePanel},
 				VOLUME: {panel: VolumePanel},
 				CIRCLE: {panel: CirclePanel},
@@ -77772,6 +78232,9 @@ ENDSEC
 						return TYPE.ANGLE;
 					} else if (measurement.showHeight) {
 						return TYPE.HEIGHT;
+					// Xavier: Add disatance horizontal
+					} else if (measurement.showWidth) {
+						return TYPE.DISTANCE_HORIZ;
 					} else if (measurement.showCircle) {
 						return TYPE.CIRCLE;
 					} else {
@@ -80508,6 +80971,29 @@ ENDSEC
 				}
 			));
 
+			// Xavier: WIDTH (mesurer une distance horizontal XY)
+			elToolbar.append(this.createToolIcon(
+				Potree.resourcePath + '/icons/width.svg',
+				'[title]Distance horizontale',
+				() => {
+					$('#menu_measurements').next().slideDown();
+					let measurement = this.measuringTool.startInsertion({
+						showDistances: false,
+						showHeight: false,
+						showWidth: true,
+						showDistances:false,
+						showArea: false,
+						closed: false,
+						maxMarkers: 2,
+						name: 'Distance XY'});
+
+					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
+					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
+					$.jstree.reference(jsonNode.id).deselect_all();
+					$.jstree.reference(jsonNode.id).select_node(jsonNode.id);
+				}
+			));
+
 			// HEIGHT
 			elToolbar.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/height.svg',
@@ -80517,6 +81003,7 @@ ENDSEC
 					let measurement = this.measuringTool.startInsertion({
 						showDistances: false,
 						showHeight: true,
+						showDistances:false,
 						showArea: false,
 						closed: false,
 						maxMarkers: 2,
@@ -81958,12 +82445,12 @@ ENDSEC
 							// Convertir les coordonnées du point de vue actuel vers EPSG:4326
 							let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
 							// Ouvrir SIGO avec les coordonnée de la vue actuelle
-							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=85f34b7c-3ff2-e58c-9c25-8b61d524c530,7f4217c6-f1cb-cbe1-0385-8907231200b7,49b29075-674c-0d58-d340-71564f9b2b21,8f804fe9-40ee-5da8-5145-38016283e4a4,8e8a28bee92d72f3edc64f712fd3f8a7,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2025:igoz103,lidar_mobile_trace_lineaire_routier2024:igoz99,lidar_mobile_trace_lineaire_routier2023:igoz97,lidar_mobile_trace_lineaire_routier2022:igoz96,lidar_mobile_trace_lineaire_routier2021:igoz95)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21`);
+							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}&invisiblelayers=*&visiblelayers=c8d448da-18f3-5c0b-f76a-f26f8cdaa403,357fa1f5f5eb1bfe1f2b79f0d1650439,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier:igoz84)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21`);
 					}
 					}
 					catch (error) {
 						// Ouvrir la page par défaut de SIGO en cas d'erreur
-						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=85f34b7c-3ff2-e58c-9c25-8b61d524c530,7f4217c6-f1cb-cbe1-0385-8907231200b7,49b29075-674c-0d58-d340-71564f9b2b21,8f804fe9-40ee-5da8-5145-38016283e4a4,8e8a28bee92d72f3edc64f712fd3f8a7,6733ff99fd0ee9fd10fe7a3ca9f7fbdf,78f520d73463340637959fffbef54297,91d31e038c6da45bc2d283aaa5124fa5,0017c63ce96866ada230ff307a72a573,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier2025:igoz103,lidar_mobile_trace_lineaire_routier2024:igoz99,lidar_mobile_trace_lineaire_routier2023:igoz97,lidar_mobile_trace_lineaire_routier2022:igoz96,lidar_mobile_trace_lineaire_routier2021:igoz95)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21')
+						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default&invisiblelayers=*&visiblelayers=c8d448da-18f3-5c0b-f76a-f26f8cdaa403,357fa1f5f5eb1bfe1f2b79f0d1650439,fondTQ&wmsUrl=%2Fms_intranet%2Fimagerie&wmsLayers=(lidar_mobile_trace_lineaire_routier:igoz84)&clo=fondHybride_ecusson_mtq:igoz10000000009,fondPlan_munic_s_telechargement_plan:igoz83,fondPlan_ecusson_mtq:igoz82,fondPlan_ecusn_nonmtq:igoz81,fondPlan_odonymie_aq_parcours:igoz80,fondPlan_territr_recrtf_label:igoz77,fondPlan_bdtq_hydro_polygon_etiquette:igoz76,fondPlan_munic_s_polygon:igoz74,fondPlan_lieu_habite:igoz73,fondPlan_gsq_v_desc_strct_tri:igoz71,fondPlan_repere_km:igoz70,fondPlan_bgr_v_sous_route_res_inv_act:igoz69,fondPlan_route_verte:igoz68,fondPlan_aq_route:igoz67,fondPlan_reseau_chfer_qc:igoz66,fondPlan_munic_s_arc:igoz64,fondPlan_centr_servc_ligne:igoz62,fondPlan_dirct_gen_terrt_ligne:igoz60,fondPlan_bdtq_hydro_arc:igoz59,fondPlan_bdtq_hydro_polygon:igoz58,fondPlan_hydro_arc_1m:igoz57,fondPlan_hydro_polygon_1m:igoz56,fondPlan_territr_recrtf:igoz55,7a15800929e86715fa02b6e98e357497:igoz24,9efc5496f2a2ef4132b2cb9e00db05b0:igoz23,fondRTSSHybride:igoz22,243263b1034cddea2e3f73cc97fb3780:igoz21')
 						// Affichier un error dans la console
 						console.warn("Error à l'ouverture de SIGO", error);
 					};
@@ -90018,8 +90505,6 @@ ENDSEC
 			// Xavier: Ajout des outils OpenStreetView et OpenSVN360
 			this.openSVN360 = new OpenSVN360(this);
 			this.openStreetView = new OpenStreetView(this);
-			// Xavier le détecteur de survol pour chainage
-        	//this.mouseHoverDetector = new MouseHoverDetector(this);
 
 			this.measuringTool = new MeasuringTool(this);
 			this.profileTool = new ProfileTool(this);
@@ -91572,10 +92057,8 @@ ENDSEC
 			
 			if(this.mapView){
 				this.mapView.update(delta);
-				if(this.mapView.sceneProjection){
-					$( "#potree_map_toggle" ).css("display", "block");
-					
-				}
+				// Xavier: Afficher toujours la carte
+				$( "#potree_map_toggle" ).css("display", "block");
 			}
 
 			TWEEN.update(timestamp);

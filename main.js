@@ -12,6 +12,12 @@ const os = require('os');
 const fs = require('fs');
 const https = require('https');
 
+// Xavier: Définir les varibles du Pipline PROJ
+const projRoot = path.join(__dirname, "libs/proj");
+process.env.PROJ_DATA = path.join(projRoot, "share/proj");
+process.env.PROJ_LIB = path.join(projRoot, "share/proj");
+process.env.PATH = path.join(projRoot, "bin") + ";" + process.env.PATH;
+
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow

@@ -6,16 +6,10 @@ Limitation
 2) 	Seulement 1 SCR possible par vue, donc ça ne fonctionne pas
 	si les nuages ne sont pas tous dans le même SCR.
 
-3) 	
-
 
 Amélioration
 ================================
 
-- Ajouter la couche de téléchargment des lidars 2025
+- Meilleur gestion et information sur les nuages de points télécharger 
 
-- Meilleur gestion et information sur les nuages de points télécharger
-
-- Ajouter les coordonnées (lat/long) d'un point en WGS83 
-
-- Intégrer Celsium
+- Intégrer Celsium (https://cesium.com/blog/2016/04/04/an-introduction-to-cesium-desktop-apps-with-electron/)
