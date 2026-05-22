@@ -108,16 +108,19 @@ function trouverFuseauPDAL(file) {
 	// Exécuter la commande
 	const result = execFileSync(
 		path_to_pdal,
-		["info", file, "--metadata"]
-	);
-	
-	let laz_crs = null
+		["info", file, "--metadata"]);
+
+	// Définir les informations du CRS
 	const crs_info = JSON.parse(result).metadata.srs.json
-	if (crs_info.type == "CompoundCRS") {
-		laz_crs = crs_info.components[0].source_crs.id
-	} else {
-		laz_crs = crs_info.id
-	}
+	let laz_crs = null
+	let crs = null
+	// Déterminer la composant horizontal XY de la projection
+	if (crs_info.type == "CompoundCRS") {crs = crs_info.components[0]}
+	else {crs = crs_info}
+	// Déterminer l'identifiant de la projection
+	if (crs.type == "BoundCRS") {laz_crs = crs.source_crs.id}
+	else {laz_crs = crs.id}
+	// Retourner le code EPSG
 	return `${laz_crs.authority}:${laz_crs.code}`
 }
 
@@ -622,7 +625,9 @@ export async function dropHandler(event){
 			if(whitelist.includes(extension)){
 				lasLazFiles.push(file.path);
 				// Xavier: Trouver la projection du laz en utilisant PDAL pour comprendre les compounds crs
-				suggestedProjection = trouverFuseau(file.path);
+				try {suggestedProjection = trouverFuseau(file.path)}
+				// handle the error
+				catch (error) {suggestedProjection = null}
 
 				if(suggestedDirectory == null){
 					suggestedDirectory = np.normalize(`${path}/..`);

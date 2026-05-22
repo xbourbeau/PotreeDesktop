@@ -3906,6 +3906,13 @@ const { Transform } = require('stream');
 
 		}
 
+		// Xavier: Ajouter une fonction pour caluculer la distance horizontal
+		slope( v ) {
+
+			return ((v.z - this.z) / this.distanceHorzTo(v)) * 100
+
+		}
+
 		manhattanDistanceTo( v ) {
 
 			return Math.abs( this.x - v.x ) + Math.abs( this.y - v.y ) + Math.abs( this.z - v.z );
@@ -53947,6 +53954,8 @@ const { Transform } = require('stream');
 			this._showHeight = false;
 			// Xavier: Parametre pour afficher la distance XY
 			this._showWidth = false;
+			// Xavier: Parametre pour afficher la pente
+			this._showSlope = false;
 			this._showEdges = true;
 			this._showAzimuth = false;
 			this.maxMarkers = Number.MAX_SAFE_INTEGER;
@@ -53968,6 +53977,8 @@ const { Transform } = require('stream');
 			this.edges = [];
 			this.sphereLabels = [];
 			this.edgeLabels = [];
+			// Xavier: Créer l'annotation de la pente
+			this.slopeLabels = [];
 			this.angleLabels = [];
 			this.coordinateLabels = [];
 
@@ -54056,6 +54067,19 @@ const { Transform } = require('stream');
 				edgeLabel.fontsize = 16;
 				this.edgeLabels.push(edgeLabel);
 				this.add(edgeLabel);
+			}
+
+			{ // Xavier Slope edge labels
+				if (this.showSlope) {
+					let slopeLabel = new TextSprite();
+					slopeLabel.setBorderColor({r: 0, g: 0, b: 0, a: 1.0});
+					slopeLabel.setBackgroundColor({r: 0, g: 0, b: 0, a: 1.0});
+					slopeLabel.material.depthTest = false;
+					slopeLabel.visible = false;
+					slopeLabel.fontsize = 16;
+					this.slopeLabels.push(slopeLabel);
+					this.add(slopeLabel);
+				}
 			}
 
 			{ // angle labels
@@ -54153,6 +54177,10 @@ const { Transform } = require('stream');
 
 			this.remove(this.edgeLabels[edgeIndex]);
 			this.edgeLabels.splice(edgeIndex, 1);
+			// Xavier remove lable:
+			this.remove(this.slopeLabels[edgeIndex]);
+			this.slopeLabels.splice(edgeIndex, 1);
+
 			this.coordinateLabels.splice(index, 1);
 
 			this.remove(this.angleLabels[index]);
@@ -54376,7 +54404,7 @@ const { Transform } = require('stream');
 
 				{ // edges
 					let edge = this.edges[index];
-
+					
 					edge.material.color = this.color;
 
 					edge.position.copy(point.position);
@@ -54415,6 +54443,31 @@ const { Transform } = require('stream');
 					let txtLength = Utils.addCommas(distance.toFixed(2));
 					edgeLabel.setText(`${txtLength} ${suffix}`);
 					edgeLabel.visible = this.showDistances && (index < lastIndex || this.closed) && this.points.length >= 2 && distance > 0;
+				}
+
+				// Xavier: Slope labels
+				if (this.showSlope) { 
+					let slopeLabel = this.slopeLabels[i];
+
+					let center = new Vector3().add(point.position);
+					center.add(nextPoint.position);
+					center = center.multiplyScalar(0.5);
+					let slope = point.position.slope(nextPoint.position);
+
+					slopeLabel.position.copy(center);
+					
+					let slopeEdge = this.edges[index];
+					if( slope >= 0) {
+						slopeLabel.setBackgroundColor({r: 0, g: 200, b: 0, a: 1.0})
+						slopeEdge.material.color = new Color(0, 200, 0);
+					} else {
+						slopeLabel.setBackgroundColor({r: 200, g: 0, b: 0, a: 1.0})
+						slopeEdge.material.color = new Color(200, 0, 0);
+					}
+
+					let txtLength = slope.toFixed(2);
+					slopeLabel.setText(`${txtLength} %`);
+					slopeLabel.visible = this.showSlope && (index < lastIndex || this.closed) && this.points.length >= 2;
 				}
 
 				{ // angle labels
@@ -54678,6 +54731,11 @@ const { Transform } = require('stream');
 			return this._showWidth;
 		}
 
+		// Xavier: Méthode pour retourner l'indicateur pour afficher une pente
+		get showSlope () {
+			return this._showSlope;
+		}
+
 		set showHeight (value) {
 			this._showHeight = value;
 			this.update();
@@ -54686,6 +54744,12 @@ const { Transform } = require('stream');
 		// Xavier: Méthode pour définir l'indicateur pour afficher une distance horizontal
 		set showWidth (value) {
 			this._showWidth = value;
+			this.update();
+		}
+
+		// Xavier: Méthode pour définir l'indicateur pour afficher une pente
+		set showSlope (value) {
+			this._showSlope = value;
 			this.update();
 		}
 
@@ -55628,6 +55692,9 @@ const { Transform } = require('stream');
 				// Xavier: Ajouter l'icon de la distance horizontal
 				} else if (measurement.showHeight) {
 					return `${Potree.resourcePath}/icons/width.svg`;
+				// Xavier: Ajouter l'icon de la pente
+				} else if (measurement.showSlope) {
+					return `${Potree.resourcePath}/icons/pente.svg`;
 				} else {
 					return `${Potree.resourcePath}/icons/distance.svg`;
 				}
@@ -64626,6 +64693,8 @@ void main() {
 			showAngles: measurement.showAngles,
 			// Xavier: Ajouter l'option de la disance horizontal (xy)
 			showWidth: measurement.showWidth,
+			// Xavier: Ajouter l'option de la pente
+			showSlope: measurement.showSlope,
 			showHeight: measurement.showHeight,
 			showCircle: measurement.showCircle,
 			showAzimuth: measurement.showAzimuth,
@@ -65737,6 +65806,8 @@ void main() {
 		measure.showHeight = data.showHeight;
 		// Xavier: Ajouter les distance horizontal (xy)
 		measure.showWidth = data.showWidth;
+		// Xavier: Ajouter la pente
+		measure.showSlope = data.showSlope;
 		measure.showCircle = data.showCircle;
 		measure.showAzimuth = data.showAzimuth;
 		measure.showEdges = data.showEdges;
@@ -69021,6 +69092,8 @@ void main() {
 			measure.showHeight = pick(args.showHeight, false);
 			// Xavier: Ajouter la distance horizontal
 			measure.showWidth = pick(args.showWidth, false);
+			// Xavier: Ajouter la pente
+			measure.showSlope = pick(args.showSlope, false);
 			measure.showCircle = pick(args.showCircle, false);
 			measure.showAzimuth = pick(args.showAzimuth, false);
 			measure.showEdges = pick(args.showEdges, true);
@@ -69115,6 +69188,22 @@ void main() {
 					}
 
 					label.scale.set(scale, scale, scale);
+				}
+
+				// Xavier: slope labels
+				if (measure.showSlope) {
+					let labels_s = measure.slopeLabels.concat(measure.angleLabels);
+					for(let label of labels_s){
+						let distance = camera.position.distanceTo(label.getWorldPosition(new Vector3()));
+						let pr = Utils.projectedRadius(1, camera, distance, clientWidth, clientHeight);
+						let scale = (70 / pr);
+
+						if(Potree.debug.scale){
+							scale = (Potree.debug.scale / pr);
+						}
+
+						label.scale.set(scale, scale, scale);
+					}
 				}
 
 				// coordinate labels
@@ -69285,6 +69374,7 @@ void main() {
 					const labels = [
 						...measure.sphereLabels, 
 						...measure.edgeLabels, 
+						...measure.slopeLabels, 
 						...measure.angleLabels, 
 						...measure.coordinateLabels,
 						measure.heightLabel,
@@ -76016,6 +76106,129 @@ ENDSEC
 		};
 	};
 
+	// Xavier: Panel des propriétés d'une mesure de pentes
+	class SlopePanel extends MeasurePanel{
+		constructor(viewer, measurement, propertiesPanel){
+			super(viewer, measurement, propertiesPanel);
+
+			let removeIconPath = Potree.resourcePath + '/icons/remove.svg';
+			this.elContent = $(`
+			<div class="measurement_content selectable">
+				<span class="slope_table_container"></span>
+				<br>
+
+				<!-- ACTIONS -->
+				<div style="display: flex; margin-top: 12px">
+					<span>
+						<input type="button" name="make_profile" value="profile from measure" />
+						<input type="button" name="make_geojson" value="Exporter la mesure en GeoJSON" />
+					</span>
+					<span style="flex-grow: 1"></span>
+					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
+				</div>
+			</div>
+		`);
+
+			this.elRemove = this.elContent.find("img[name=remove]");
+			this.elRemove.click( () => {
+				this.viewer.scene.removeMeasurement(measurement);
+			});
+
+			this.elMakeProfile = this.elContent.find("input[name=make_profile]");
+			this.elMakeProfile.click( () => {
+				//measurement.points;
+				const profile = new Profile();
+
+				profile.name = measurement.name;
+				profile.width = measurement.getTotalDistance() / 50;
+
+				for(const point of measurement.points){
+					profile.addMarker(point.position.clone());
+				}
+
+				this.viewer.scene.addProfile(profile);
+
+			});
+
+			// Xavier: Connecter la création du Geojson
+			this.elExportGeoJSON = this.elContent.find("input[name=make_geojson]");
+			this.elExportGeoJSON.click( () => {
+				// Nom du fichier par défault
+				let name = String(measurement.name) + ".geojson";
+				// Exporter le GeoJSON de la mesure
+				GeoJSONExporter.download(measurement, name);
+			});
+
+			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
+			this.propertiesPanel.addVolatileListener(measurement, "marker_removed", this._update);
+			this.propertiesPanel.addVolatileListener(measurement, "marker_moved", this._update);
+
+			this.update();
+		}
+
+		update(){
+			let elSlopeContainer = this.elContent.find('.slope_table_container');
+			elSlopeContainer.empty();
+			elSlopeContainer.append(this.createCreateSlopeTable());
+		}
+
+		createCreateSlopeTable(){
+			let table = $(`<table style="width:100%" class="slope_value_table"></table>`);
+			let copyIconPath = Potree.resourcePath + '/icons/copy.svg';
+
+			let positions = this.measurement.points.map(p => p.position);
+			// Xavier: Ajouter les pentes pour chaque segments
+			let pentes = []
+			let distances = [];
+			let heights = [];
+			for (let i = 0; i < positions.length - 1; i++) {
+				let pente = positions[i].slope(positions[i + 1]);
+				pentes.push(pente);
+				let d = positions[i].distanceTo(positions[i + 1]);
+				distances.push(d.toFixed(2));
+				let z1 = positions[i].z;
+				let z2 = positions[i + 1].z;
+				heights.push(z2 - z1);
+			}
+			
+			table.append(`<tr><th>Distance</th><th>ΔZ</th><th>Pente</th></tr>`)
+			for (let i = 0; i < pentes.length; i++) {
+				let pente = pentes[i];
+				let distance = distances[i];
+				let deltaz = heights[i];
+				let elPente = $(`
+				<tr>
+					<td style="text-align:center">${distance}</td>
+					<td style="text-align:center">${deltaz.toFixed(2)}</td>
+					<td style="text-align:center">${pente.toFixed(2)} %</td>
+				</tr>`);
+				table.append(elPente);
+			}
+
+			let totalDistance = this.measurement.getTotalDistance().toFixed(2);
+			const mean_slope = pentes.reduce((sum, value) => sum + value, 0) / pentes.length
+			const mean_deltaz = heights.reduce((sum, value) => sum + value, 0) / heights.length
+			// Ajouter la distance horizontal total
+			let elMoyenne = $(`
+			<tr>
+				<td style="text-align:center;padding-top: 10px"><b>Total</b></td>
+				<td style="text-align:center;padding-top: 10px"><b>Moyenne</b></td>
+				<td style="text-align:center;padding-top: 10px"><b>Moyenne</b></td>
+			</tr>
+			<tr>
+				<td style="text-align:center">${totalDistance}</td>
+				<td style="text-align:center">${mean_deltaz.toFixed(2)}</td>
+				<td style="text-align:center">${mean_slope.toFixed(2)} %</td>
+			</tr>
+			`);
+			table.append(elMoyenne);
+
+
+			return table;
+			
+		};
+	};
+
 	class AreaPanel extends MeasurePanel{
 		constructor(viewer, measurement, propertiesPanel){
 			super(viewer, measurement, propertiesPanel);
@@ -78208,6 +78421,8 @@ ENDSEC
 				HEIGHT: {panel: HeightPanel},
 				// Xavier: Add disatance horizontal
 				DISTANCE_HORIZ: {panel: DistancePanel},
+				// Xavier: Add slopes panel
+				SLOPE: {panel: SlopePanel},
 				PROFILE: {panel: ProfilePanel},
 				VOLUME: {panel: VolumePanel},
 				CIRCLE: {panel: CirclePanel},
@@ -78235,6 +78450,9 @@ ENDSEC
 					// Xavier: Add disatance horizontal
 					} else if (measurement.showWidth) {
 						return TYPE.DISTANCE_HORIZ;
+					// Xavier: Add slopes panel
+					} else if (measurement.showSlope) {
+						return TYPE.SLOPE;
 					} else if (measurement.showCircle) {
 						return TYPE.CIRCLE;
 					} else {
@@ -81008,6 +81226,29 @@ ENDSEC
 						closed: false,
 						maxMarkers: 2,
 						name: 'Height'});
+
+					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
+					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
+					$.jstree.reference(jsonNode.id).deselect_all();
+					$.jstree.reference(jsonNode.id).select_node(jsonNode.id);
+				}
+			));
+
+			// Xavier: Mesurer une pente en %
+			elToolbar.append(this.createToolIcon(
+				Potree.resourcePath + '/icons/pente.svg',
+				'[title]Mesurer une pente',
+				() => {
+					$('#menu_measurements').next().slideDown();
+					let measurement = this.measuringTool.startInsertion({
+						showDistances: false,
+						showHeight: false,
+						showWidth: false,
+						showSlope: true,
+						showDistances:false,
+						showArea: false,
+						closed: false,
+						name: 'Pente'});
 
 					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
 					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
