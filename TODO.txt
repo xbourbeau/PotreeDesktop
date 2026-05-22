@@ -12,4 +12,10 @@ Amélioration
 
 - Meilleur gestion et information sur les nuages de points télécharger 
 
+- Mesure dans la vue profil
+
+- Télécharger en Batch
+
 - Intégrer Celsium (https://cesium.com/blog/2016/04/04/an-introduction-to-cesium-desktop-apps-with-electron/)
+Ou
+https://maplibre.org/
