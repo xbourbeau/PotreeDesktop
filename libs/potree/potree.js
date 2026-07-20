@@ -3913,6 +3913,30 @@ const { Transform } = require('stream');
 
 		}
 
+		// Xavier: Ajouter une fonction pour caluculer la distance point → ligne perpendiculaire
+		distancePointToLine(v1, v2) {
+			const D = this.point90OnLine(v1, v2)
+			
+			const distance = this.distanceTo(D);
+
+			return distance
+		}
+
+		// Xavier: Ajouter une fonction pour calculer le point perpendiculaire à une ligne 
+		point90OnLine(v1, v2) {
+			const AB = new Vector3().subVectors(v2, v1);
+			const AC = new Vector3().subVectors(new Vector3().copy(this), v1);
+
+			const t = AC.dot(AB) / AB.dot(AB);
+
+			const D = new Vector3().copy(v1).add(
+				AB.clone().multiplyScalar(t)
+			);
+
+			return D
+		}		
+
+
 		manhattanDistanceTo( v ) {
 
 			return Math.abs( this.x - v.x ) + Math.abs( this.y - v.y ) + Math.abs( this.z - v.z );
@@ -53673,6 +53697,54 @@ const { Transform } = require('stream');
 		return widthtEdge;
 	}
 
+	// Xavier: Créer une ligne  pour représenter une distance perpendiculaire
+	function createDist90Line(){
+		let lineGeometry = new LineGeometry();
+
+		lineGeometry.setPositions([
+			0, 0, 0,
+			0, 0, 0,
+		]);
+
+		let lineMaterial = new LineMaterial({ 
+			color: 0x00ff00, 
+			dashSize: 5, 
+			gapSize: 2,
+			linewidth: 2, 
+			resolution:  new Vector2(1000, 1000),
+		});
+
+		lineMaterial.depthTest = false;
+		const dit90Edge = new Line2(lineGeometry, lineMaterial);
+		dit90Edge.visible = false;
+		
+		return dit90Edge;
+	}
+
+	// Xavier: Créer une ligne  pour représenter la ligne référence de la distance perpendiculaire
+	function createDist90LineReference(){
+		let lineGeometry = new LineGeometry();
+
+		lineGeometry.setPositions([
+			0, 0, 0,
+			0, 0, 0,
+		]);
+
+		let lineMaterial = new LineMaterial({ 
+			color: 0x0000FF, 
+			dashSize: 5, 
+			gapSize: 2,
+			linewidth: 1, 
+			resolution:  new Vector2(1000, 1000),
+		});
+
+		lineMaterial.depthTest = false;
+		const dit90EdgeRef = new Line2(lineGeometry, lineMaterial);
+		dit90EdgeRef.visible = false;
+		
+		return dit90EdgeRef;
+	}
+
 	function createHeightLabel(){
 		const heightLabel = new TextSprite('');
 
@@ -53700,6 +53772,21 @@ const { Transform } = require('stream');
 		widthLabel.visible = false;
 
 		return widthLabel;
+	}
+
+	// Xavier: Créer une annotation pour les distance perpendiculaire
+	function createDist90Label(){
+		const dist90Label = new TextSprite('');
+
+		dist90Label.setTextColor({r: 140, g: 250, b: 140, a: 1.0});
+		dist90Label.setBorderColor({r: 0, g: 0, b: 0, a: 1.0});
+		dist90Label.setBackgroundColor({r: 0, g: 0, b: 0, a: 1.0});
+		dist90Label.fontsize = 16;
+		dist90Label.material.depthTest = false;
+		dist90Label.material.opacity = 1;
+		dist90Label.visible = false;
+
+		return dist90Label;
 	}
 
 	function createAreaLabel(){
@@ -53956,6 +54043,8 @@ const { Transform } = require('stream');
 			this._showWidth = false;
 			// Xavier: Parametre pour afficher la pente
 			this._showSlope = false;
+			// Xavier: Parametre pour afficher une distance perpendiculaire
+			this._show90Dist = false;
 			this._showEdges = true;
 			this._showAzimuth = false;
 			this.maxMarkers = Number.MAX_SAFE_INTEGER;
@@ -53988,6 +54077,11 @@ const { Transform } = require('stream');
 			this.widthLabel = createWidthLabel();
 			this.widthEdge = createWidthLine();
 
+			// Xavier: Créer l'annotation d'un distance perpendiculaire
+			this.dist90Label = createDist90Label();
+			this.dist90Edge = createDist90Line();
+			this.dist90EdgeReference = createDist90LineReference();
+
 			this.areaLabel = createAreaLabel();
 			this.circleRadiusLabel = createCircleRadiusLabel();
 			this.circleRadiusLine = createCircleRadiusLine();
@@ -54001,6 +54095,11 @@ const { Transform } = require('stream');
 			// Xavier: Ajouter l'annotation de distance horizontal (xy)
 			this.add(this.widthEdge);
 			this.add(this.widthLabel);
+			// Xavier: Ajouter l'annotation une distance perpendiculaire
+			this.add(this.dist90Edge);
+			this.add(this.dist90EdgeReference);
+			this.add(this.dist90Label);
+
 			this.add(this.areaLabel);
 			this.add(this.circleRadiusLabel);
 			this.add(this.circleRadiusLine);
@@ -54069,7 +54168,7 @@ const { Transform } = require('stream');
 				this.add(edgeLabel);
 			}
 
-			{ // Xavier Slope edge labels
+			{ // Xavier: Slope edge labels
 				if (this.showSlope) {
 					let slopeLabel = new TextSprite();
 					slopeLabel.setBorderColor({r: 0, g: 0, b: 0, a: 1.0});
@@ -54586,6 +54685,50 @@ const { Transform } = require('stream');
 				}
 			}
 
+			{ // Xavier: Distance perpendiculaire
+				let dist90Edge = this.dist90Edge;
+				dist90Edge.visible = this.show90Dist;
+				this.dist90Label.visible = this.show90Dist;
+
+				this.dist90EdgeReference.visible = this.show90Dist;
+
+				if (this.show90Dist) {
+					if (this.points.length == 3) {
+						let [p1, p2, p3] = this.points.slice()
+						p1 = p1.position
+						p2 = p2.position
+						p3 = p3.position
+
+						// Point à 90 degres sur la ligne
+						let point_90 = p3.point90OnLine(p1, p2)
+						let distance_90 = p3.distancePointToLine(p1, p2)
+
+						dist90Edge.position.copy(point_90)
+						dist90Edge.geometry.setPositions([
+							0, 0, 0,
+							...p3.clone().sub(point_90).toArray(),
+						]);
+
+						dist90Edge.geometry.verticesNeedUpdate = true;
+						dist90Edge.geometry.computeBoundingSphere();
+						dist90Edge.computeLineDistances();
+
+						let dist90LabelPosition = point_90.clone().add(p3).multiplyScalar(0.5);
+						this.dist90Label.position.copy(dist90LabelPosition);
+
+						let suffix = "";
+						if(this.lengthUnit != null && this.lengthUnitDisplay != null){
+							distance_90 = distance_90 / this.lengthUnit.unitspermeter * this.lengthUnitDisplay.unitspermeter;  //convert to meters then to the display unit
+							suffix = this.lengthUnitDisplay.code;
+						}
+
+						let txtDistance90 = Utils.addCommas(distance_90.toFixed(2));
+						let msg = `${txtDistance90} ${suffix}`;
+						this.dist90Label.setText(msg);
+					}
+				}
+			}
+
 			{ // update circle stuff
 				const circleRadiusLabel = this.circleRadiusLabel;
 				const circleRadiusLine = this.circleRadiusLine;
@@ -54736,6 +54879,11 @@ const { Transform } = require('stream');
 			return this._showSlope;
 		}
 
+		// Xavier: Méthode pour retourner l'indicateur pour afficher une distance perpendiculaire
+		get show90Dist () {
+			return this._show90Dist;
+		}
+
 		set showHeight (value) {
 			this._showHeight = value;
 			this.update();
@@ -54750,6 +54898,12 @@ const { Transform } = require('stream');
 		// Xavier: Méthode pour définir l'indicateur pour afficher une pente
 		set showSlope (value) {
 			this._showSlope = value;
+			this.update();
+		}
+
+		// Xavier: Méthode pour définir l'indicateur pour afficher une distance perpendiculaire
+		set show90Dist (value) {
+			this._show90Dist = value;
 			this.update();
 		}
 
@@ -55695,6 +55849,9 @@ const { Transform } = require('stream');
 				// Xavier: Ajouter l'icon de la pente
 				} else if (measurement.showSlope) {
 					return `${Potree.resourcePath}/icons/pente.svg`;
+				// Xavier: Ajouter l'icon de la distance perpendiculaire
+				} else if (measurement.show90Dist) {
+					return `${Potree.resourcePath}/icons/dist90.svg`;
 				} else {
 					return `${Potree.resourcePath}/icons/distance.svg`;
 				}
@@ -64695,6 +64852,8 @@ void main() {
 			showWidth: measurement.showWidth,
 			// Xavier: Ajouter l'option de la pente
 			showSlope: measurement.showSlope,
+			// Xavier: Ajouter l'option de la distance perpendiculaire
+			show90Dist: measurement.show90Dist,
 			showHeight: measurement.showHeight,
 			showCircle: measurement.showCircle,
 			showAzimuth: measurement.showAzimuth,
@@ -64773,8 +64932,9 @@ void main() {
 			// Chercher les éléments feature spécifiques à votre structure
 			const featureElements = xmlDoc.getElementsByTagName(layer_name);
 
-			let link_1 = ""
-			let link_2 = ""
+			let link_1 = null
+			let link_2 = null
+			let feature = null
 			
 			console.log('Features trouvées:', featureElements.length);
 			
@@ -64789,11 +64949,6 @@ void main() {
 					const tagName = child.tagName;
 					const textContent = child.textContent?.trim();
 					
-					// Ignorer les éléments de géométrie et boundedBy
-					if (tagName === 'geometry' || tagName === 'gml:boundedBy') {
-						continue;
-					}
-					
 					// Extraire les propriétés
 					if (textContent && textContent !== '') {
 						if (tagName === "fichier1_url"){
@@ -64802,15 +64957,23 @@ void main() {
 						if (tagName === "fichier2_url"){
 							link_2 = textContent
 						}
+						// Get geometry
+						if (tagName === 'geometry') {
+							const coords = textContent.split(/\s+/).map(pair => {
+								const [x, y] = pair.split(',').map(Number);
+								return [x, y];
+							});
+							feature = new ol.Feature({geometry: new ol.geom.LineString(coords)});
+						}
 					}
 				}
 			}
-			return [link_1, link_2];
+			return [[link_1, link_2], feature];
 			
 		} catch (error) {
 			console.error('Erreur lors du parsing GML:', error);
 			console.log('Réponse GML brute:', gmlText);
-			return [null, null];
+			return [[null], null];
 		}
 	}
 
@@ -64890,15 +65053,18 @@ void main() {
 		}
 		console.log("File path:", filePath);
 		// Afficher un message d'erreur à l'utilisateur 
-		viewer.postMessage(`Téléchargement du fichier laz:<br><i>${fileName}</i>`, {duration: 15000});
+		let message = viewer.postTelechargement(`Téléchargement du fichier laz:<br><i>${fileName}</i>`, {duration: 15000});
+		
 
 		// 1. Télécharger le fichier .laz
 		const response = await fetch(url);
 		const buffer = await response.arrayBuffer();
 		// 2. Sauvegarder temporairement
 		fs.writeFileSync(filePath, Buffer.from(buffer));
+		// Retirer le message de téléchargement
+		viewer.removeTelechargement(message)
 		// 3. Simuler le drag & drop
-    	simulateDragDrop(filePath);
+		viewer.add_lidar_queu.add(filePath)
 	}
 
 	// Xavier: Lookup table qui associ une projection à un fuseau 
@@ -65084,6 +65250,65 @@ void main() {
 			return null;
 		}
 	}
+
+	// Xavier: Fonction qui permet de d'ouvrir SIGO à partir d'un point et d'un niveau de zoom
+	async function openSIGO(center=null, zoom=null, fond_imagerie=false) {
+		let zoom_level = ""
+		let center_map = ""
+		let fondcarte = ""
+		// Définir le paramètres du zoom de la carte 
+		if (zoom == null) {zoom_level = ""}
+		else {zoom_level = `&zoom=${zoom}`}
+		// Définir le paramètres du centre de la carte 
+		if (center == null) {center_map = ""}
+		else {center_map = `&center=${center[0]},${center[1]}`}
+		// Définir le paramètres du fond d'imagerie
+		if (fond_imagerie) {fondcarte = "&invisiblelayers=*&visiblelayers=imagerie"}
+		else {fondcarte = ""}
+		// Ouvrir SIGO avec les coordonnée et le zoom
+		openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default${zoom_level}${center_map}${fondcarte}`);
+	}
+
+	class TaskAddLidarQueue {
+		// Objet pour la queu des index lidar a ajouter
+
+		constructor() {
+			this.queue = [];
+			this.processing = false;
+		}
+
+		add(index) {
+			this.queue.push(index);
+			this.process();
+		}
+
+		async process() {
+			if (this.processing) {return}
+
+			this.processing = true;
+			while (this.queue.length > 0) {
+				const index = this.queue.shift();
+				// Exécute le drag and drop
+				await simulateDragDrop(index);
+				// Attend que le drag and drop soit terminer
+				await this.waitToAddLidar();
+			}
+			this.processing = false;
+		}
+
+		waitToAddLidar() {
+			return new Promise(resolve => {
+				// Exemple
+				const handler = () => {
+					document.removeEventListener('newIndexLidarAdded', handler);
+					resolve();
+				};
+				document.addEventListener('newIndexLidarAdded', handler);
+			});
+		}
+
+	}
+
 
 	function createAnnotationsData(viewer){
 		
@@ -65808,6 +66033,8 @@ void main() {
 		measure.showWidth = data.showWidth;
 		// Xavier: Ajouter la pente
 		measure.showSlope = data.showSlope;
+		// Xavier: Ajouter la distance perpendiculaire
+		measure.show90Dist = data.show90Dist;
 		measure.showCircle = data.showCircle;
 		measure.showAzimuth = data.showAzimuth;
 		measure.showEdges = data.showEdges;
@@ -69023,7 +69250,8 @@ void main() {
 	class MeasuringTool extends EventDispatcher{
 		constructor (viewer) {
 			super();
-
+			// Xavier: Is active
+			this.is_active = false
 			this.viewer = viewer;
 			this.renderer = viewer.renderer;
 
@@ -69068,7 +69296,8 @@ void main() {
 
 		startInsertion (args = {}) {
 			let domElement = this.viewer.renderer.domElement;
-
+			// Xavier: Is active
+			this.is_active = true
 			let measure = new Measure();
 
 			this.dispatchEvent({
@@ -69094,6 +69323,8 @@ void main() {
 			measure.showWidth = pick(args.showWidth, false);
 			// Xavier: Ajouter la pente
 			measure.showSlope = pick(args.showSlope, false);
+			// Xavier: Ajouter la distance perpendiculaire
+			measure.show90Dist = pick(args.show90Dist, false);
 			measure.showCircle = pick(args.showCircle, false);
 			measure.showAzimuth = pick(args.showAzimuth, false);
 			measure.showEdges = pick(args.showEdges, true);
@@ -69133,6 +69364,8 @@ void main() {
 				}
 				domElement.removeEventListener('mouseup', insertionCallback, false);
 				this.viewer.removeEventListener('cancel_insertions', cancel.callback);
+				// Xavier: Is active
+				this.is_active = false
 			};
 
 			if (measure.maxMarkers > 1) {
@@ -69338,6 +69571,99 @@ void main() {
 					}
 				}
 
+				// Xavier: ajouter distance perpendiculaire 
+				if (measure.show90Dist) {
+					let label = measure.dist90Label;
+					{
+						let distance = label.position.distanceTo(camera.position);
+						let pr = Utils.projectedRadius(1, camera, distance, clientWidth, clientHeight);
+						let scale = (70 / pr);
+						label.scale.set(scale, scale, scale);
+					}
+
+					{ // Updade edge
+						let edge = measure.dist90Edge;
+						let edgeReference = measure.dist90EdgeReference;
+						
+						if (measure.points.length >= 2 ) {
+							let [pts1, pts2, pts3] = measure.points.slice()
+							pts1 = pts1.position
+							pts2 = pts2.position
+							if (pts1.x != pts2.x || pts1.y != pts2.y || pts1.z != pts2.z) {
+								const camera = this.viewer.scene.getActiveCamera();
+								const frustum = new Frustum();
+								const projScreenMatrix = new Matrix4();
+								projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+								frustum.setFromProjectionMatrix(projScreenMatrix);
+								const planes = frustum.planes;
+								const dir = new Vector3().subVectors(pts2, pts1).normalize();
+
+								let tMin = -Infinity;
+								let tMax = Infinity;
+
+								for (let plane of planes) {
+									const normal = plane.normal;
+									const constant = plane.constant;
+									const denom = normal.dot(dir);
+									const dist = normal.dot(pts1) + constant;
+									const t = -dist / denom;
+									if (denom > 0) { tMin = Math.max(tMin, t)}
+									else { tMax = Math.min(tMax, t)}
+								}
+
+								const start_pts1 = pts1.clone().addScaledVector(dir, tMin);
+								const end_pts1 = pts1.clone().addScaledVector(dir, tMax);
+
+								measure.dist90EdgeReference.position.copy(start_pts1);
+								measure.dist90EdgeReference.geometry.setPositions([
+									0, 0, 0,
+									...end_pts1.clone().sub(start_pts1).toArray()])
+							}
+						}
+
+						let sorted = measure.points.slice().sort((a, b) => a.position.z - b.position.z);
+						let p1 = sorted[0].position.clone();
+						let p2 = sorted[sorted.length - 1].position.clone();
+
+						let min = p1.z;
+
+						let start = new Vector3(p1.x, p1.y, min);
+						let end = new Vector3(p2.x, p2.y, min);
+
+						let lowScreen = p1.clone().project(camera);
+						let startScreen = start.clone().project(camera);
+						let endScreen = end.clone().project(camera);
+
+						let toPixelCoordinates = v => {
+							let r = v.clone().addScalar(1).divideScalar(2);
+							r.x = r.x * clientWidth;
+							r.y = r.y * clientHeight;
+							r.z = 0;
+
+							return r;
+						};
+
+						let lowEL = toPixelCoordinates(lowScreen);
+						let startEL = toPixelCoordinates(startScreen);
+						let endEL = toPixelCoordinates(endScreen);
+
+						let lToS = lowEL.distanceTo(startEL);
+						let sToE = startEL.distanceTo(endEL);
+
+						edge.geometry.lineDistances = [0, lToS, lToS, lToS + sToE];
+						edge.geometry.lineDistancesNeedUpdate = true;
+
+						edge.material.dashSize = 10;
+						edge.material.gapSize = 10;
+
+						edgeReference.geometry.lineDistances = [0, lToS, lToS, lToS + sToE];
+						edgeReference.geometry.lineDistancesNeedUpdate = true;
+
+						edgeReference.material.dashSize = 10;
+						edgeReference.material.gapSize = 10;
+					}
+				}
+
 				{ // area label
 					let label = measure.areaLabel;
 					let distance = label.position.distanceTo(camera.position);
@@ -69378,6 +69704,7 @@ void main() {
 						...measure.angleLabels, 
 						...measure.coordinateLabels,
 						measure.heightLabel,
+						measure.dist90Label,
 						measure.areaLabel,
 						measure.circleRadiusLabel,
 					];
@@ -69404,6 +69731,45 @@ void main() {
 			this.element = $(`
 			<div class="potree_message">
 				<span name="content_container" style="flex-grow: 1; padding: 5px"></span>
+				<img name="close" src="${closeIcon}" class="button-icon" style="width: 16px; height: 16px;">
+			</div>`);
+
+			this.elClose = this.element.find("img[name=close]");
+
+			this.elContainer = this.element.find("span[name=content_container]");
+
+			if(typeof content === "string"){
+				this.elContainer.append($(`<span>${content}</span>`));
+			}else {
+				this.elContainer.append(content);
+			}
+
+		}
+
+		setMessage(content){
+			this.elContainer.empty();
+			if(typeof content === "string"){
+				this.elContainer.append($(`<span>${content}</span>`));
+			}else {
+				this.elContainer.append(content);
+			}
+		}
+
+	}
+
+	// Xavier: Message de téléchargement
+	class MessageTelecharchement{
+
+		constructor(content){
+			this.content = content;
+
+			let closeIcon = `${exports.resourcePath}/icons/close.svg`;
+			let loadIcon = `${Potree.resourcePath}/images/loading.gif`;
+
+			this.element = $(`
+			<div class="potree_message" style="align-items: center; display:flex">
+				<img name="load" src="${loadIcon}" style="width: 20px; height: 20px">
+				<span name="content_container" style="flex-grow: 1; padding: 5px; margin-left: 8px"></span>
 				<img name="close" src="${closeIcon}" class="button-icon" style="width: 16px; height: 16px;">
 			</div>`);
 
@@ -72412,6 +72778,8 @@ void main() {
 
 			this.extentsLayer = null;
 			this.cameraLayer = null;
+			this.follow_camera = false
+			this.drone_camera_layer = null;
 			this.toolLayer = null;
 			this.sourcesLayer = null;
 			this.sourcesLabelLayer = null;
@@ -72483,18 +72851,12 @@ void main() {
 			this.elMap.append(this.elTooltip);
 
 			let extentsLayer = this.getExtentsLayer();
-			let cameraLayer = this.getCameraLayer();
+			let cameraLayer = this.getDroneCameraLayer();
 			this.getToolLayer();
 			let sourcesLayer = this.getSourcesLayer();
 			this.images360Layer = this.getImages360Layer();
 			this.getSourcesLabelLayer();
 			this.getAnnotationsLayer();
-
-			let mousePositionControl = new ol.control.MousePosition({
-				coordinateFormat: ol.coordinate.createStringXY(5),
-				projection: 'EPSG:4326',
-				undefinedHTML: '&nbsp;'
-			});
 
 			// Xavier créer le fond de carte de l'imagerie aérienne
 			let imagerie_aerienne = new ol.layer.Tile({
@@ -72618,9 +72980,9 @@ void main() {
 			});
 			
 			// Xavier Créer une couche des index de téléchargement des données LIDAR Mobile (2025 par défault)
-			this.current_year = 2025
+			this.current_year = 2026
 			// Liste des années possible déjà connu ayant du lidar
-			this.list_of_annee_lidar = [2025, 2024, 2023, 2022, 2021]
+			this.list_of_annee_lidar = [2026, 2025, 2024, 2023, 2022, 2021]
 			// Créer la couche par défault avec l'année courante
 			this.index_lidar_telechargement = new ol.layer.Image({
 				source: new ol.source.ImageWMS({
@@ -72639,57 +73001,130 @@ void main() {
 			});
 
 			let _this = this;
-			let DownloadSelectionControl = function (optOptions) {
+			
+			// Xavier: Creer un ol control pour suivre la camera dans la carte
+			let FollowCameraControl = function (optOptions) {
 				let options = optOptions || {};
 
-				// TOGGLE TILES
-				let btToggleTiles = document.createElement('button');
-				btToggleTiles.innerHTML = 'T';
-				btToggleTiles.addEventListener('click', () => {
-					let visible = sourcesLayer.getVisible();
-					_this.showSources(!visible);
+				let btToggleFollow = document.createElement('button');
+				btToggleFollow.className = 'ol-unselectable image-btn';
+				
+				// Image du bouton
+				const img = document.createElement('img');
+				img.src = options.icon || `${Potree.resourcePath}/icons/drone_icon.png`
+				btToggleFollow.appendChild(img);
+
+				btToggleFollow.addEventListener('click', () => {
+					_this.follow_camera =  !_this.follow_camera
+					// Changer le style du bouton
+					if (_this.follow_camera) {
+						btToggleFollow.style.boxShadow = 'inset 1.5px 1.5px 5px #1a2838df, inset -1.5px -1.5px 5px rgba(184, 199, 223, 0.54)'
+						btToggleFollow.style.backgroundColor = '#3d6aa1bb'
+						}
+					else {
+						btToggleFollow.style.boxShadow = ''
+						btToggleFollow.style.backgroundColor = ''
+					}
 				}, false);
-				btToggleTiles.style.float = 'left';
-				btToggleTiles.title = 'show / hide tiles';
+				btToggleFollow.title = 'Suivre la position de la caméra de la vue 3D dans la carte.';
 
-				// DOWNLOAD SELECTED TILES
-				let link = document.createElement('a');
-				link.href = '#';
-				link.download = 'list.txt';
-				link.style.float = 'left';
+				// assemble container
+				let element = document.createElement('div');
+				element.className = 'ol-unselectable ol-control top-left';
+				element.style.backgroundColor = ''
+				
+				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
+				element.appendChild(btToggleFollow);
 
-				let button = document.createElement('button');
-				button.innerHTML = 'D';
-				link.appendChild(button);
+				ol.control.Control.call(this, {
+					element: element,
+					target: options.target
+				});
+			}
 
-				// Xavier: couleur des boutons actif ou inactif
-				_this.disabled_color = 'rgba(153, 171, 197, 0.7)'
-				let active_color = 'rgba(5, 47, 103, 0.7)'
+			// Xavier: Creer un ol control pour changer le fond de carte
+			let FondCarteControl = function (optOptions) {
+				let options = optOptions || {};
 
 				// Xavier TOGGLE Imagerie aérienne
 				let btToggleImage = document.createElement('button');
-				btToggleImage.innerHTML = 'I';
+				btToggleImage.className = 'ol-unselectable image-btn';
+				
+				// Image du bouton
+				const img = document.createElement('img');
+				img.src = options.icon || `${Potree.resourcePath}/images/fond_carte_aerien.jpg`
+				btToggleImage.appendChild(img);
+				btToggleImage.style.backgroundColor = '#ff000000'
+
 				btToggleImage.addEventListener('click', () => {
 					imagerie_aerienne.setVisible(!imagerie_aerienne.getVisible());
 					fond_MTMD.setVisible(!fond_MTMD.getVisible());
 					// Changer le style du bouton
-					if (imagerie_aerienne.getVisible()) {btToggleImage.style.backgroundColor = active_color}
-					else {btToggleImage.style.backgroundColor = ''}
+					if (imagerie_aerienne.getVisible()) {img.src = options.icon || `${Potree.resourcePath}/icons/map_icon.png`}
+					else {img.src = options.icon || `${Potree.resourcePath}/images/fond_carte_aerien.jpg`}
 				}, false);
-				btToggleImage.style.float = 'left';
-				btToggleImage.title = 'Afficher / masquer les images aériennes';
+				btToggleImage.title = 'Changer le fond de carte';
 
-				// Xavier TOGGLE Chainage MTQ
-				let btToggleChainage = document.createElement('button');
-				btToggleChainage.innerHTML = 'C';
-				btToggleChainage.addEventListener('click', () => {
-					chainage_MTMD.setVisible(!chainage_MTMD.getVisible());
-					// Changer le style du bouton
-					if (chainage_MTMD.getVisible()) {btToggleChainage.style.backgroundColor = active_color}
-					else {btToggleChainage.style.backgroundColor = ''}
+				// assemble container
+				let element = document.createElement('div');
+				element.className = 'ol-unselectable ol-control bottom-left';
+				element.style.left = '2px'
+				element.style.bottom = '2px'
+				element.style.backgroundColor = '#ff000000'
+				
+				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
+				element.appendChild(btToggleImage);
+
+				ol.control.Control.call(this, {
+					element: element,
+					target: options.target
+				});
+			}
+			
+			// Xavier: Creer un ol control pour ouvrir la vue dans SIGO
+			let OpenSIGOControl = function (optOptions) {
+				let options = optOptions || {};
+
+				let btOpenSIGO = document.createElement('button');
+				btOpenSIGO.className = 'ol-unselectable image-btn';
+
+				
+				// Image du bouton
+				const img = document.createElement('img');
+				img.src = options.icon || `${Potree.resourcePath}/icons/igo.png`
+				btOpenSIGO.appendChild(img);
+				btOpenSIGO.style.backgroundColor = '#ff000000'
+
+				btOpenSIGO.addEventListener('click', () => {
+					let center = proj4(_this.mapProjectionName, 'EPSG:4326', _this.map.getView().getCenter())
+					let zoom = _this.map.getView().getZoom() ?? Math.round(Math.log2(156543.03392804097 / _this.map.getView().getResolution()))
+					let fond_carte_imagerie = !fond_MTMD.getVisible()
+					openSIGO(center, zoom, fond_carte_imagerie)
 				}, false);
-				btToggleChainage.style.float = 'left';
-				btToggleChainage.title = 'Afficher / masquer le chaînage';
+				btOpenSIGO.title = 'Ouvrir la vue dans SIGO';
+
+				// assemble container
+				let element = document.createElement('div');
+				element.className = 'ol-unselectable ol-control bottom-right';
+				element.style.right = '2px'
+				element.style.bottom = '2px'
+				element.style.backgroundColor = '#ff000000'
+				
+				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
+				element.appendChild(btOpenSIGO);
+
+				ol.control.Control.call(this, {
+					element: element,
+					target: options.target
+				});
+			}
+
+			// Xavier: Creer un ol control pour afficher les index de téléchargement du lidar
+			let ShowIndexLidarControls = function (optOptions) {
+				let options = optOptions || {};
+
+				// Xavier: couleur des boutons actif ou inactif
+				_this.disabled_color = 'rgba(153, 171, 197, 0.7)'
 
 				// Xavier Bouton pour TOGGLE la couche de Télécharment LIDAR pour l'année selectionnée
 				_this.btToggleLidarAnnee = document.createElement('button');
@@ -72699,11 +73134,18 @@ void main() {
 					// Définir la visibilité de la couche
 					_this.index_lidar_telechargement.setVisible(!_this.index_lidar_telechargement.getVisible());
 					// Changer le style du bouton
-					if (_this.index_lidar_telechargement.getVisible()) {_this.btToggleLidarAnnee.style.backgroundColor = active_color}
-					else {_this.btToggleLidarAnnee.style.backgroundColor = ''}
+					if (_this.index_lidar_telechargement.getVisible()) {
+						_this.btToggleLidarAnnee.style.boxShadow = 'inset 1.5px 1.5px 5px #1a2838df, inset -1.5px -1.5px 5px rgba(184, 199, 223, 0.54)'
+						_this.btToggleLidarAnnee.style.backgroundColor = '#3d6aa1bb'
+						}
+					else {
+						_this.btToggleLidarAnnee.style.boxShadow = ''
+						_this.btToggleLidarAnnee.style.backgroundColor = ''
+						}
 				}, false);
 				// Définir des propriété du bouton
 				_this.btToggleLidarAnnee.style.float = 'left';
+				_this.btToggleLidarAnnee.style.transition = '0.2s'
 				_this.btToggleLidarAnnee.title = `Téléchargement des données LiDAR Mobile ${_this.current_year}`;
 				_this.btToggleLidarAnnee.style.width = '3em';
 
@@ -72719,7 +73161,7 @@ void main() {
 				_this.btToggleLidarAnneeGauche.style.float = 'left';
 				_this.btToggleLidarAnneeGauche.disabled = ! _this.list_of_annee_lidar.includes(_this.current_year - 1)
 				_this.btToggleLidarAnneeGauche.style.width = '1em';
-				_this.btToggleLidarAnneeGauche.style.marginLeft = '5px'
+				_this.btToggleLidarAnneeGauche.title = "Modifier l'année des index de téléchargement LiDAR."
 				if (_this.btToggleLidarAnneeGauche.disabled) {_this.btToggleLidarAnneeGauche.style.backgroundColor = _this.disabled_color
 				} else {_this.btToggleLidarAnneeGauche.style.backgroundColor = ''}
 
@@ -72735,6 +73177,7 @@ void main() {
 				_this.btToggleLidarAnneeDroite.style.float = 'left';
 				_this.btToggleLidarAnneeDroite.disabled = ! _this.list_of_annee_lidar.includes(_this.current_year + 1)
 				_this.btToggleLidarAnneeDroite.style.width = '1em';
+				_this.btToggleLidarAnneeDroite.title = "Modifier l'année des index de téléchargement LiDAR.";
 				if (_this.btToggleLidarAnneeDroite.disabled) {_this.btToggleLidarAnneeDroite.style.backgroundColor = _this.disabled_color
 				} else {_this.btToggleLidarAnneeDroite.style.backgroundColor = ''}
 
@@ -72744,78 +73187,38 @@ void main() {
 					_this.updateCurrentYearLidar(_this.current_year)
 				});
 
-				let handleDownload = (e) => {
-					let features = selectedFeatures.getArray();
-
-					let url = [document.location.protocol, '//', document.location.host, document.location.pathname].join('');
-
-					if (features.length === 0) {
-						alert('No tiles were selected. Select area with ctrl + left mouse button!');
-						e.preventDefault();
-						e.stopImmediatePropagation();
-						return false;
-					} else if (features.length === 1) {
-						let feature = features[0];
-
-						if (feature.source) {
-							let cloudjsurl = feature.pointcloud.pcoGeometry.url;
-							let sourceurl = new URL(url + '/../' + cloudjsurl + '/../source/' + feature.source.name);
-							link.href = sourceurl.href;
-							link.download = feature.source.name;
-						}
-					} else {
-						let content = '';
-						for (let i = 0; i < features.length; i++) {
-							let feature = features[i];
-
-							if (feature.source) {
-								let cloudjsurl = feature.pointcloud.pcoGeometry.url;
-								let sourceurl = new URL(url + '/../' + cloudjsurl + '/../source/' + feature.source.name);
-								content += sourceurl.href + '\n';
-							}
-						}
-
-						let uri = 'data:application/octet-stream;base64,' + btoa(content);
-						link.href = uri;
-						link.download = 'list_of_files.txt';
-					}
-				};
-
-				button.addEventListener('click', handleDownload, false);
+				_this.btToggleLidarAnnee.click()
 
 				// assemble container
 				let element = document.createElement('div');
-				element.className = 'ol-unselectable ol-control';
-				//element.appendChild(link);
-				//element.appendChild(btToggleTiles);
-				// Xavier Ajouter le bouton pour activer et desactiver les images aériennes
-				element.appendChild(btToggleImage);
-				// Xavier Ajouter le bouton pour activer et desactiver la couche de chaînage
-				element.appendChild(btToggleChainage);
+				element.className = 'ol-unselectable ol-control bottom-center-container';
+				
 				// Xavier Ajouter le bouton pour activer et desactiver les couches de téléchargement LIDAR Mobile
 				element.appendChild(_this.btToggleLidarAnneeGauche);
 				element.appendChild(_this.btToggleLidarAnnee);
 				element.appendChild(_this.btToggleLidarAnneeDroite);
-				element.style.bottom = '0.5em';
-				element.style.left = '0.5em';
-				element.title = 'Download file or list of selected tiles. Select tile with left mouse button or area using ctrl + left mouse.';
 
 				ol.control.Control.call(this, {
 					element: element,
 					target: options.target
 				});
 			};
-			ol.inherits(DownloadSelectionControl, ol.control.Control);
+			ol.inherits(ShowIndexLidarControls, ol.control.Control);
+			ol.inherits(FondCarteControl, ol.control.Control);
+			ol.inherits(OpenSIGOControl, ol.control.Control);
+			ol.inherits(FollowCameraControl, ol.control.Control);
 
 			this.map = new ol.Map({
 				controls: ol.control.defaults({
+					attribution: false,
 					attributionOptions: ({
 						collapsible: false
 					})
 				}).extend([
-					// this.controls.zoomToExtent,
-					new DownloadSelectionControl(),
-					mousePositionControl
+					new FondCarteControl(),
+					new ShowIndexLidarControls(),
+					new OpenSIGOControl(),
+					new FollowCameraControl()
 				]),
 				layers: [
 					// Xavier: Ajouter les couches à la carte
@@ -72824,7 +73227,6 @@ void main() {
 					this.index_lidar_actif,
 					this.index_lidar_telechargement,
 					chainage_MTMD,
-					//new ol.layer.Tile({source: new ol.source.OSM()}),
 					this.toolLayer,
 					this.annotationsLayer,
 					this.sourcesLayer,
@@ -72853,7 +73255,14 @@ void main() {
 			});
 			this.map.addLayer(this.dragBoxLayer);
 
-			let select = new ol.interaction.Select();
+			// FLASH GEOM
+			this.flashLayer = new ol.layer.Vector({
+				source: new ol.source.Vector({}),
+				style: null
+			});
+			this.map.addLayer(this.flashLayer);
+
+			let select = new ol.interaction.Select({layers:[]});
 			this.map.addInteraction(select);
 
 			let selectedFeatures = select.getFeatures();
@@ -72886,8 +73295,15 @@ void main() {
 				if (this.index_lidar_telechargement.getVisible() === true){
 					// Interroger le WMS pour obtenir l'URL du fichier LAZ
 					this.queryWMSFeatures(evt.pixel).then(result => {
-						// Download le fichier LAZ et ajouter le au viewer
-						downloadAndAddLazFile(result[0], this.viewer)
+						if (result[0][0] != null) {
+							if (result[1] != null) { 
+								// Flash la géometrie de l'entitée d'index à télécharger
+								this.flashLayer.getSource().addFeature(result[1]);
+								this.flashLine(result[1])
+							}
+							// Download le fichier LAZ et ajouter le au viewer
+							downloadAndAddLazFile(result[0][0], this.viewer)
+						}
 					});
 				}
 			});
@@ -73155,13 +73571,48 @@ void main() {
 			return this.annotationsLayer;
 		}
 
-		getCameraLayer () {
-			if (this.cameraLayer) {
-				return this.cameraLayer;
-			}
+		getDroneCameraLayer () {
+			// Xavier: Créer une couche pour la camera 
+			if (this.drone_camera_layer) {return this.drone_camera_layer}
 
+			this.droneCamera = new ol.geom.Point([0, 0])
+			this.drone_camera_dir = 0
+			this.feature_center = new ol.Feature(this.droneCamera);
+			let feature_vector_center = new ol.source.Vector({
+				features: [this.feature_center]
+			});
+			
+			this.drone_icon_1 = new ol.style.Style({
+				image: new ol.style.Icon({
+					src: Potree.resourcePath + "/icons/drone.png",
+					scale: 0.1,
+					anchor: [0.5, 0.5],
+					rotation:this.drone_camera_dir
+				})
+			})
+
+			this.drone_icon_2 = new ol.style.Style({
+				image: new ol.style.Icon({
+					src: Potree.resourcePath + "/icons/drone_2.png",
+					scale: 0.1,
+					anchor: [0.5, 0.5],
+					rotation:this.drone_camera_dir
+				})
+			})
+
+			this.drone_camera_layer = new ol.layer.Vector({
+				source: feature_vector_center,
+				style: this.drone_icon_1
+			});
+
+			return this.drone_camera_layer;
+		}
+
+		getCameraLayer () {
+			if (this.cameraLayer) {return this.cameraLayer}
+			
 			// CAMERA LAYER
-			this.gCamera = new ol.geom.LineString([[0, 0], [0, 0], [0, 0], [0, 0]]);
+			this.gCamera = new ol.geom.Polygon([[0, 0], [0, 0], [0, 0], [0, 0]]);
 			let feature = new ol.Feature(this.gCamera);
 			let featureVector = new ol.source.Vector({
 				features: [feature]
@@ -73527,7 +73978,24 @@ void main() {
 			let p2 = mapLookAt.clone().sub(mapSide.clone().multiplyScalar(0.3 * mapLength)).toArray();
 			let p3 = mapLookAt.clone().add(mapSide.clone().multiplyScalar(0.3 * mapLength)).toArray();
 
-			this.gCamera.setCoordinates([p1, p2, p3, p1]);
+			//this.gCamera.setCoordinates([p1, p2, p3, p1]);
+			// Xavier: Update la rotation de la camera Drone
+			this.droneCamera.setCoordinates(p1);
+			
+			// Suivre la position de la camera de la vue 3D
+			if (this.follow_camera) {this.map.getView().setCenter(p1)}
+			
+			let angle = Math.atan2(-mapDir.y, mapDir.x)
+			if (angle == 0) {
+				const euler = new Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+				this.drone_camera_dir = (Math.PI*2 - ((euler.z + Math.PI*2) % Math.PI*2));
+				this.drone_camera_layer.setStyle(this.drone_icon_2)
+			} else {
+				this.drone_camera_dir = Math.atan2(-mapDir.y, mapDir.x) + Math.PI / 2;
+				this.drone_camera_layer.setStyle(this.drone_icon_1)
+			}
+			this.drone_camera_layer.getStyle().getImage().setRotation(this.drone_camera_dir);
+			this.feature_center.changed(); 
 		}
 
 		get sourcesVisible () {
@@ -73675,15 +74143,47 @@ void main() {
 				return response.text();
 			})
 			.then(gmlText => {
-				const links = parseGMLResponse(gmlText, 'lidar_mobile_trace_lineaire_routier_feature'); 
-				return links;
+				const anwser = parseGMLResponse(gmlText, 'lidar_mobile_trace_lineaire_routier_feature'); 
+				return anwser;
 			})
 			.catch(error => {
 				console.error('Erreur lors de la requête GetFeatureInfo:', error);
-				showErrorMessage('Erreur lors de la requête WMS: ' + error.message);
+				viewer.postError('Erreur lors de la requête WMS: ' + error.message, {duration: 15000});
 				return null;
 			});
 		}
+
+		flashLine(feature) {
+			const duration = 500; 
+			const flashes = 2;      
+			const totalDuration = duration * flashes;
+
+			const start = Date.now();
+
+			const animate = () => {
+				const elapsed = Date.now() - start;
+				const cycle = (elapsed % duration) / duration; // 0 → 1
+
+				if (elapsed > totalDuration) {
+				feature.setStyle(null); // reset
+				return;
+				}
+
+				const opacity = 1 - cycle;
+
+				feature.setStyle(new ol.style.Style({
+					stroke: new ol.style.Stroke({
+						color: `rgba(0,255,255,${opacity})`,
+						width: 4
+					})
+				}));
+
+				requestAnimationFrame(animate);
+			};
+
+			animate();
+		}
+
 	}
 
 	/**
@@ -74343,11 +74843,7 @@ ENDSEC
 			
 			
 		}
-
-
-
-
-
+		
 		initListeners () {
 			$(window).resize(() => {
 				if (this.enabled) {
@@ -74371,6 +74867,62 @@ ENDSEC
 				let scale = (10 / pr);
 				this.viewerPickSphere.scale.set(scale, scale, scale);
 			};
+
+			// Xavier: ProfilXB
+			this.renderArea.mouseup(e => {
+				return;
+				if (this.pointclouds.size === 0) {
+					return;
+				}
+				let rect = this.renderArea[0].getBoundingClientRect();
+				let x = e.clientX - rect.left;
+				let y = e.clientY - rect.top;
+
+				let newMouse = new Vector2(x, y);
+
+				// FIND HOVERED POINT
+				let radius = Math.abs(this.scaleX.invert(0) - this.scaleX.invert(40));
+				let mileage = this.scaleX.invert(newMouse.x);
+				let elevation = this.scaleY.invert(newMouse.y);
+
+				let closest = this.selectPoint(mileage, elevation, radius);
+				let point = null
+				if (closest) {point = closest.point;}
+				else {return;}
+				if (!point) {return;}
+				console.log(point)
+				
+				if (this.viewer.measuringTool.is_active) {
+					//let domElement = this.viewer.renderer.domElement;
+					switch (e.button) {
+						// Left click
+						case 0:
+
+							//let position = new Float64Array([
+							//	point.position[0] + closest.pointcloud.position.x,
+							//	point.position[1] + closest.pointcloud.position.y,
+							//	point.position[2] + closest.pointcloud.position.z
+							//]);
+							//let measure = this.viewer.scene.measurements[0]
+							//console.log(position)
+							//let pts = new Object3D();
+							//pts.setPosition(position[0], position[1], position[2])
+							//console.log(measure)
+
+							//measure.addMarker(pts.position.clone())
+							break;
+						case 1:
+							console.log("Middle click (wheel)");
+							break;
+
+						case 2:
+							console.log("Right click");
+							break;
+					}
+					console.log(point)
+				}
+
+			});
 
 			this.renderArea.mousemove(e => {
 				if (this.pointclouds.size === 0) {
@@ -74405,7 +74957,7 @@ ENDSEC
 
 					if (closest) {
 						let point = closest.point;
-
+						
 						let position = new Float64Array([
 							point.position[0] + closest.pointcloud.position.x,
 							point.position[1] + closest.pointcloud.position.y,
@@ -75010,16 +75562,14 @@ ENDSEC
 			let radius = Math.abs(scaleX.invert(0) - scaleX.invert(5));
 			
 	
-					let radiusy =  radius*(scaleXFactor /scaleYFactor);
+			let radiusy =  radius*(scaleXFactor /scaleYFactor);
 			//MTMD On ajuste le rayon en Z pour qu'il ne s'affiche pas en Oblong lorsqu'on joue avec l'échelle d'éxagératoin↑
 	
 			
 			if (radius === 0) {
 				pickSphere.visible = false;
-			} else {
-				
-								
-				pickSphere.scale.set(radius , radius ,  radiusy   );
+			} else {			
+				pickSphere.scale.set(radius, radius, radiusy);
 				//ajuster -> RADIUS MTMD ↑
 				pickSphere.visible = true;
 			}
@@ -76227,6 +76777,97 @@ ENDSEC
 			return table;
 			
 		};
+	};
+
+	// Xavier: Panel des distances perpendiculaire 
+	class DistancePerpendiculairePanel extends MeasurePanel{
+		constructor(viewer, measurement, propertiesPanel){
+			super(viewer, measurement, propertiesPanel);
+
+			let removeIconPath = Potree.resourcePath + '/icons/remove.svg';
+			// Xavier: Ajouter un bouton pour enregistrer en GeoJSON la mesure
+			this.elContent = $(`
+			<div class="measurement_content selectable">
+				<span class="coordinates_table_container"></span>
+				<br>
+				<table id="distances_table" class="measurement_value_table"></table>
+
+				<!-- ACTIONS -->
+				<div style="display: flex; margin-top: 12px">
+					<span>
+						<input type="button" name="make_profile" value="profile from measure" />
+					</span>
+					<span style="flex-grow: 1"></span>
+					<img name="remove" class="button-icon" src="${removeIconPath}" style="width: 16px; height: 16px"/>
+				</div>
+			</div>
+		`);
+
+			this.elRemove = this.elContent.find("img[name=remove]");
+			this.elRemove.click( () => {
+				this.viewer.scene.removeMeasurement(measurement);
+			});
+			
+			this.elMakeProfile = this.elContent.find("input[name=make_profile]");
+			this.elMakeProfile.click( () => {
+
+				if (measurement.points.length == 3) {
+					const profile = new Profile();
+
+					let [p1, p2, p3] = measurement.points.slice()
+					p1 = p1.position
+					p2 = p2.position
+					p3 = p3.position
+
+					// Point à 90 degres sur la ligne
+					let point_90 = p3.point90OnLine(p1, p2)
+					let distance_90 = p3.distancePointToLine(p1, p2)
+
+					profile.name = measurement.name;
+					profile.width = distance_90 / 50;
+					profile.addMarker(point_90.clone());
+					profile.addMarker(p3.clone());
+
+					this.viewer.scene.addProfile(profile);
+
+				} else { this.viewer.postMessage("Impossible de créer le profil, car la mesure est incomplète.", {duration: 1000})}
+
+			});
+
+			this.propertiesPanel.addVolatileListener(measurement, "marker_added", this._update);
+			this.propertiesPanel.addVolatileListener(measurement, "marker_removed", this._update);
+			this.propertiesPanel.addVolatileListener(measurement, "marker_moved", this._update);
+
+			this.update();
+		}
+
+		update(){
+			let elCoordiantesContainer = this.elContent.find('.coordinates_table_container');
+			elCoordiantesContainer.empty();
+			elCoordiantesContainer.append(this.createCoordinatesTable(this.measurement.points.map(p => p.position)));
+
+			let positions = this.measurement.points.map(p => p.position);
+			let distances = [];
+
+			// Xavier:  
+			let dist_perp = "<i>incomplète</i>"
+			if (positions.length == 3) {
+				let val_dist_perp = positions[2].distancePointToLine(positions[0], positions[1]).toFixed(3)
+				dist_perp = `${val_dist_perp} m`
+			}
+
+			let elDistanceTable = this.elContent.find(`#distances_table`);
+			elDistanceTable.empty();
+			elDistanceTable.append("<tr><th></th><th></th></tr>")
+			
+			let label = (i === 0) ? 'Distances ⦜: ' : '';
+			let elDistance = $(`
+			<tr>
+				<th>Distances ⦜:</th>
+				<td style="width: 50%; padding-left: 10px">${dist_perp}</td>
+			</tr>`);
+			elDistanceTable.append(elDistance);
+		}
 	};
 
 	class AreaPanel extends MeasurePanel{
@@ -78419,8 +79060,10 @@ ENDSEC
 				POINT: {panel: PointPanel},
 				ANGLE: {panel: AnglePanel},
 				HEIGHT: {panel: HeightPanel},
-				// Xavier: Add disatance horizontal
+				// Xavier: Add distance horizontal
 				DISTANCE_HORIZ: {panel: DistancePanel},
+				// Xavier: Add une distance perpendiculaire
+				DISTANCE_90: {panel: DistancePerpendiculairePanel},
 				// Xavier: Add slopes panel
 				SLOPE: {panel: SlopePanel},
 				PROFILE: {panel: ProfilePanel},
@@ -78453,6 +79096,9 @@ ENDSEC
 					// Xavier: Add slopes panel
 					} else if (measurement.showSlope) {
 						return TYPE.SLOPE;
+					// Xavier: Add un panel distance perpendiculaire
+					} else if (measurement.show90Dist) {
+						return TYPE.DISTANCE_90;
 					} else if (measurement.showCircle) {
 						return TYPE.CIRCLE;
 					} else {
@@ -81234,6 +81880,30 @@ ENDSEC
 				}
 			));
 
+			// Xavier: Mesurer une distance perpendiculaire
+			elToolbar.append(this.createToolIcon(
+				Potree.resourcePath + '/icons/dist90.svg',
+				'[title]Mesurer une distance perpendiculaire',
+				() => {
+					$('#menu_measurements').next().slideDown();
+					let measurement = this.measuringTool.startInsertion({
+						showDistances: false,
+						showHeight: false,
+						showWidth: false,
+						show90Dist: true,
+						showArea: false,
+						closed: false,
+						showEdges:false,
+						maxMarkers: 3,
+						name: 'Distance perpendiculaire'});
+
+					let measurementsRoot = $("#jstree_scene").jstree().get_json("measurements");
+					let jsonNode = measurementsRoot.children.find(child => child.data.uuid === measurement.uuid);
+					$.jstree.reference(jsonNode.id).deselect_all();
+					$.jstree.reference(jsonNode.id).select_node(jsonNode.id);
+				}
+			));
+
 			// Xavier: Mesurer une pente en %
 			elToolbar.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/pente.svg',
@@ -82652,12 +83322,12 @@ ENDSEC
 							// Convertir les coordonnées du point de vue actuel vers EPSG:4326
 							let pt_converted = proj4(projection, 'EPSG:4326', [viewer.scene.view.position.x, viewer.scene.view.position.y]);
 							// Ouvrir SIGO avec les coordonnée de la vue actuelle
-							openExternal(`https://igo.mtq.min.intra/tq/sigo/?context=_default&zoom=18&center=${pt_converted[0]},${pt_converted[1]}`);
+							openSIGO(pt_converted, 18);
 						}
 					}
 					catch (error) {
 						// Ouvrir la page par défaut de SIGO en cas d'erreur
-						openExternal('https://igo.mtq.min.intra/tq/sigo/?context=_default');
+						openSIGO();
 						// Affichier un error dans la console
 						console.warn("Error à l'ouverture de SIGO", error);
 					};
@@ -90468,6 +91138,17 @@ ENDSEC
 			style="position: absolute; z-index: 1000; left: 10px; bottom: 10px">
 		</div>`);
 			$(domElement).append(this.elMessages);
+
+			// Xavier: Ajouter des messages de téléchargements en cours
+			this.telechargement_en_cours = [];
+			this.elMessagesTelechargement = $(`
+				<div id="telechargement_en_cours_listing" 
+					style="position: absolute; z-index: 1000; right: 10px; bottom: 10px">
+				</div>`);
+			$(domElement).append(this.elMessagesTelechargement);
+
+			// Xavier: Creer la queu des index a ajouter a la scene
+			this.add_lidar_queu = new TaskAddLidarQueue()
 			
 			try{
 
@@ -92710,7 +93391,7 @@ ENDSEC
 
 			message.element.css("display", "none");
 			message.elClose.click( () => {
-				message.element.slideToggle(animationDuration);
+				message.element.slideUp(animationDuration);
 
 				let index = this.messages.indexOf(message);
 				if(index >= 0){
@@ -92720,7 +93401,7 @@ ENDSEC
 
 			this.elMessages.prepend(message.element);
 
-			message.element.slideToggle(animationDuration);
+			message.element.slideDown(animationDuration);
 
 			this.messages.push(message);
 
@@ -92731,11 +93412,39 @@ ENDSEC
 					message.element.animate({
 						opacity: 0	
 					}, fadeDuration);
-					message.element.slideToggle(slideOutDuration);
+					message.element.slideUp(slideOutDuration);
 				}, params.duration);
 			}
 
 			return message;
+		}
+
+		// Xavier: Poster un téléchargement en cours
+		postTelechargement(content, params = {}){
+			let message = new MessageTelecharchement(content);
+
+			message.element.css("display", "none");
+			message.elClose.click( () => {
+				this.removeTelechargement(message)
+			});
+
+			this.elMessagesTelechargement.prepend(message.element);
+
+			message.element.slideToggle(100);
+
+			this.telechargement_en_cours.push(message);
+
+			return message;
+		}
+
+		// Xavier: Terminer le téléchargement en cours
+		removeTelechargement(message){
+			message.element.animate({opacity: 0}, 500);
+
+			message.element.slideUp(200);
+
+			let index = this.telechargement_en_cours.indexOf(message);
+			if(index >= 0){this.telechargement_en_cours.splice(index, 1)}
 		}
 	};
 

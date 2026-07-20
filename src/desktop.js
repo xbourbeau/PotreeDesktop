@@ -492,6 +492,9 @@ export async function doConversion(inputPaths, suggestedDirectory, suggestedName
 
 	elCancel.onclick = () => {
 		elPanel.style.display = "none";
+
+		// Xavier: Indiquer au queu que un nouvelle index lidar peux être ajouter
+		document.dispatchEvent(new Event("newIndexLidarAdded"))
 	};
 
 	elStart.onclick = () => {
@@ -515,7 +518,8 @@ export async function doConversion(inputPaths, suggestedDirectory, suggestedName
 			convert_20(inputPaths, targetDirectory, suggestedName, elProjection.value);
 		}
 
-
+		// Xavier: Indiquer au queu que un nouvelle index lidar peux être ajouter
+		document.dispatchEvent(new Event("newIndexLidarAdded"))
 	};
 }
 
